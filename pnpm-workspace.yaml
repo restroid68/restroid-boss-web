@@ -1,0 +1,10 @@
+# Single-package workspace — pnpm 11 build approval lives here (not package.json "pnpm" key).
+packages:
+  - '.'
+
+allowBuilds:
+  sharp: true
+  msw: true
+
+overrides:
+  hono: 4.12.25
