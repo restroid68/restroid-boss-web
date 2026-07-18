@@ -22,7 +22,7 @@ export function BossMPageHeader({
   return (
     <header
       className={cn(
-        'flex items-center gap-3 px-4 pt-4 pb-3 bg-background',
+        'flex items-center gap-3 px-4 pt-4 pb-3 bg-transparent',
         className
       )}
     >

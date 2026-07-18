@@ -37,7 +37,7 @@ export default function BossMMenuPage() {
   const tukendiCount  = items.filter((i) => i.tukendi).length
 
   return (
-    <main className="flex flex-col h-screen bg-background">
+    <main className="flex flex-col min-h-0 bg-background">
       <BossMPageHeader
         title="Menü & Fiyat"
         showBack

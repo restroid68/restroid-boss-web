@@ -70,37 +70,27 @@ function serviceAmt(breakdown: unknown, id: number): number {
   return 0
 }
 
-/** JSON / nesne alanlarını UI metnine çevir (String(obj) → "[object Object]" olmasın). */
-function humanText(v: unknown, fallback = ''): string {
+/** Düz string; nesne/JSON asla UI’ye yazılmaz. */
+function asPlainString(v: unknown, fallback = ''): string {
   if (v == null) return fallback
-  if (typeof v === 'string') return v.trim() || fallback
+  if (typeof v === 'string') {
+    const t = v.trim()
+    if (!t || t.startsWith('{') || t.startsWith('[')) return fallback
+    return t
+  }
   if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  if (Array.isArray(v)) {
-    const parts = v.map((x) => humanText(x, '')).filter(Boolean)
-    return parts.length ? parts.join(', ') : fallback
-  }
-  const m = asMap(v)
-  if (!m) return fallback
-  for (const key of [
-    'label',
-    'name',
-    'title',
-    'message',
-    'actionLabel',
-    'entityLabel',
-    'summary',
-    'before',
-    'after',
-  ]) {
-    const t = humanText(m[key], '')
-    if (t) return t
-  }
-  try {
-    const s = JSON.stringify(m)
-    return s.length > 80 ? `${s.slice(0, 77)}…` : s
-  } catch {
-    return fallback
-  }
+  return fallback
+}
+
+function friendlyKeyLabel(raw: string): string {
+  const key = raw.trim().toLowerCase()
+  if (!key) return ''
+  const hit = ENTITY_PAGE_TR[key]
+  if (hit) return hit
+  // snake_case → kısa okunur (teknik anahtar gösterme)
+  return key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 const ACTION_TR: Record<string, string> = {
@@ -114,22 +104,62 @@ const ACTION_TR: Record<string, string> = {
   undo: 'Geri alma',
 }
 
+/** entityType / pageKey → Türkçe etiket */
+const ENTITY_PAGE_TR: Record<string, string> = {
+  inventory_count: 'Stok sayımı',
+  inventory_counts: 'Stok sayımı',
+  hq_stock_inventory_counts: 'Stok sayımı',
+  product: 'Ürün',
+  product_catalog: 'Ürün kataloğu',
+  product_category: 'Kategori',
+  personnel: 'Personel',
+  staff: 'Personel',
+  customer: 'Müşteri',
+  supplier: 'Tedarikçi',
+  license: 'Lisans',
+  super_admin_issued_license: 'Lisans',
+  service_channel: 'Servis türü',
+  branch: 'Şube',
+  cash_account: 'Kasa hesabı',
+  accounting_transaction: 'Muhasebe hareketi',
+  online_order: 'Online sipariş',
+  qr_menu_order: 'QR sipariş',
+  dashboard: 'Ana sayfa',
+  stock: 'Stok',
+  definitions: 'Tanımlar',
+  settings: 'Ayarlar',
+}
+
+/** detail JSON’dan yalnızca insan okunur kısa ipucu */
+function friendlyDetailHint(detail: unknown): string {
+  const m = asMap(detail)
+  if (!m) return asPlainString(detail, '')
+  const orderNo = asPlainString(m.orderNumber ?? m.order_number, '')
+  if (orderNo) return `Sipariş ${orderNo}`
+  const name = asPlainString(m.name ?? m.productName ?? m.title ?? m.label, '')
+  if (name) return name
+  if (typeof m.lineCount === 'number' && Number.isFinite(m.lineCount)) {
+    return `${m.lineCount} satır`
+  }
+  if (m.markAll === true) return 'Toplu işaretleme'
+  if (typeof m.inserted === 'number') return `${m.inserted} kayıt`
+  return ''
+}
+
 function formatOperationAlert(raw: unknown, index: number): AlertRow {
   const row = asMap(raw) ?? {}
-  const actionKey = humanText(row.action, 'işlem').toLowerCase()
-  const actionTr = ACTION_TR[actionKey] ?? humanText(row.action, 'İşlem')
-  const entity = humanText(row.entityType, '')
-  const actor = humanText(row.actorName, '')
-  const page = humanText(row.pageKey, '')
-  const detailText = humanText(row.detail, '')
+  const actionKey = asPlainString(row.action, 'işlem').toLowerCase()
+  const actionTr = ACTION_TR[actionKey] ?? 'İşlem'
+  const entity = friendlyKeyLabel(asPlainString(row.entityType, ''))
+  const actor = asPlainString(row.actorName, '')
+  const page = friendlyKeyLabel(asPlainString(row.pageKey, ''))
+  const hint = friendlyDetailHint(row.detail)
 
   const message = [actionTr, entity].filter(Boolean).join(' · ') || actionTr
-  const detail =
-    [actor, page && page !== entity ? page : '', detailText && detailText !== entity ? detailText : '']
-      .filter(Boolean)
-      .join(' · ') || '—'
+  const detailParts = [actor, page && page !== entity ? page : '', hint].filter(Boolean)
+  const detail = detailParts.join(' · ') || '—'
 
-  const timeRaw = humanText(row.createdAt ?? row.time, '')
+  const timeRaw = asPlainString(row.createdAt ?? row.time, '')
   const time = timeRaw.includes('T')
     ? timeRaw.slice(11, 16)
     : timeRaw.slice(0, 5) || '--:--'
@@ -137,11 +167,10 @@ function formatOperationAlert(raw: unknown, index: number): AlertRow {
   const critical =
     actionKey.includes('delete') ||
     actionKey.includes('cancel') ||
-    actionKey.includes('iptal') ||
-    humanText(row.severity, '').includes('critical')
+    actionKey.includes('iptal')
 
   return {
-    id: humanText(row.id, `log-${index}`),
+    id: asPlainString(row.id, `log-${index}`),
     type: critical ? 'kritik' : 'uyari',
     message,
     detail,
@@ -409,7 +438,7 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
 
   const alerts: AuditAlert[] = items.map((raw, i) => {
     const row = asMap(raw) ?? {}
-    const action = humanText(row.action ?? row.actionKey, '').toLowerCase()
+    const action = asPlainString(row.action ?? row.actionKey, '').toLowerCase()
     let category: AuditAlert['category'] = 'Tümü'
     if (action.includes('cancel') || action.includes('iptal')) category = 'İptal'
     else if (action.includes('delete') || action.includes('sil')) category = 'Silme'
@@ -422,22 +451,26 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
         ? 'kritik'
         : 'uyari'
 
-    const actionTr = ACTION_TR[action] ?? humanText(row.action, 'İşlem')
-    const entity = humanText(row.entityType, '')
+    const actionTr = ACTION_TR[action] ?? 'İşlem'
+    const entity = friendlyKeyLabel(asPlainString(row.entityType, ''))
     const detailAmt = asMap(row.detail)?.amount
+    const target =
+      friendlyKeyLabel(asPlainString(row.pageKey ?? row.page ?? row.target, '')) ||
+      friendlyDetailHint(row.detail) ||
+      '—'
 
     return {
-      id: humanText(row.id, String(i)),
+      id: asPlainString(row.id, String(i)),
       severity,
       category,
       title: entity ? `${actionTr} · ${entity}` : actionTr,
-      who: humanText(row.userName ?? row.actorName ?? row.email, '—'),
-      target: humanText(row.entityLabel ?? row.pageKey ?? row.page ?? row.target, '—'),
+      who: asPlainString(row.userName ?? row.actorName ?? row.email, '—'),
+      target,
       amount:
         detailAmt != null || row.amount != null
           ? `₺${formatMoneyTR(num(detailAmt ?? row.amount))}`
           : '—',
-      time: humanText(row.createdAt, '').slice(11, 16) || '--:--',
+      time: asPlainString(row.createdAt, '').slice(11, 16) || '--:--',
     }
   })
 

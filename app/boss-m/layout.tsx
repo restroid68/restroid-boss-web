@@ -1,16 +1,33 @@
 import BossBridgeBootstrap from '@/components/boss/BossBridgeBootstrap'
 
-// Shell layout for /boss-m — no bottom nav (Flutter owns it).
-// h-dvh + min-h-0: WebView’de dikey kaydırma için flex çocuğunun boyutu kısıtlanmalı.
+/**
+ * Flutter alt nav ~78px + gesture bar. Scroll alanı buna göre kısaltılır;
+ * içerikte ekstra alt boşluk — son kartlar barın altında kalmasın.
+ */
+const NATIVE_BOTTOM_CLEARANCE = 'pb-[7.5rem]' // 120px
+
 export default function BossMLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
-    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-background pb-[72px]">
+    <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#070B14]">
+      {/* Login ile aynı arka plan */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/boss-login-bg.png')" }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#070B14]/55 via-[#070B14]/78 to-[#04060C]/94"
+      />
+
       <BossBridgeBootstrap />
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y">
+      <div
+        className={`relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y ${NATIVE_BOTTOM_CLEARANCE}`}
+      >
         {children}
       </div>
     </div>
