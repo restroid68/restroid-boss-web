@@ -101,10 +101,13 @@
 
 /* ── WebView / App Store constraints ── */
 html, body {
+  height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
-  touch-action: manipulation;
+  /* pan-y: dikey kaydırma WebView’de çalışsın (manipulation tek başına yetmez) */
+  touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
   scrollbar-width: none;          /* Firefox */
   -ms-overflow-style: none;       /* IE/Edge */

@@ -4,19 +4,12 @@ import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
 import { BossMChannelGrid } from '@/components/boss/ana/BossMChannelGrid'
 import { BossMDikkatList } from '@/components/boss/ana/BossMDikkatList'
 import { BossMOperasyonChipsRow } from '@/components/boss/ana/BossMOperasyonChips'
-import { BossMSubelerTeaser } from '@/components/boss/ana/BossMSubelerTeaser'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { ANA_KPIS, BRANCHES, CHANNEL_CARDS, DIKKAT_ALERTS, STOK_KPI } from '@/lib/boss-mock'
+import { ANA_KPIS, CHANNEL_CARDS, DIKKAT_ALERTS, STOK_KPI } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { postToNative, readNativeSession } from '@/lib/boss-bridge'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { Store, ChevronDown } from 'lucide-react'
-
-const BRANCH_REVENUE: Record<string, string> = {
-  b1: '₺24.8K',
-  b2: '₺18.2K',
-  b3: '₺11.5K',
-}
 
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
@@ -45,7 +38,6 @@ export default function BossMDashboard() {
     )
   }
 
-  const multiBranch = BRANCHES.length > 1
   const session = readNativeSession()
 
   return (
@@ -93,18 +85,17 @@ export default function BossMDashboard() {
 
       <BossMOperasyonChipsRow badgeOverrides={data.operasyonBadges} />
 
-      {multiBranch && (
-        <BossMSubelerTeaser branches={BRANCHES} revenue={BRANCH_REVENUE} />
+      {data.alerts.length > 0 && (
+        <>
+          <div className="px-4 flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Dikkat
+            </span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <BossMDikkatList alerts={data.alerts} />
+        </>
       )}
-
-      <div className="px-4 flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Dikkat
-        </span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
-      <BossMDikkatList alerts={data.alerts} />
     </main>
   )
 }

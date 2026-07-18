@@ -60,6 +60,16 @@ function asMap(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
 }
 
+/** Panel `serviceTypeBreakdown` — Flutter BossDashboardData ile aynı id’ler */
+function serviceAmt(breakdown: unknown, id: number): number {
+  if (!Array.isArray(breakdown)) return 0
+  for (const e of breakdown) {
+    const row = asMap(e)
+    if (row && num(row.serviceTypeId) === id) return num(row.amount)
+  }
+  return 0
+}
+
 export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback: AnaDashboardData = {
@@ -78,7 +88,8 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const day = todayYmd()
   const [sales, onlinePending, qrPending, active, logs] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-      query: { from: day, to: day, part: 'full' },
+      // Cloud route: fromDay / toDay (from/to yok sayılır)
+      query: { fromDay: day, toDay: day, part: 'full' },
     }),
     bossFetch<{ count?: number }>('/api/sales/online-orders/pending-count'),
     bossFetch<{ count?: number }>('/api/sales/qr-menu-orders/pending-count'),
@@ -93,11 +104,16 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   if (!sales.ok || !sales.data) return fallback
 
   const d = sales.data
-  const summary = asMap(d.summary) ?? asMap(d.totals) ?? d
-  const ciro = num(summary.totalRevenue ?? summary.revenue ?? summary.ciro ?? d.totalRevenue)
-  const paid = num(summary.paidAmount ?? summary.paid ?? summary.tahsilat)
-  const openAmt = num(summary.openAmount ?? summary.open ?? summary.acik)
-  const guests = num(summary.guestCount ?? summary.guests ?? summary.konuk)
+  const summary = asMap(d.summary) ?? {}
+  // Cloud SalesAnalysisForBranch.summary alanları
+  const ciro = num(
+    summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue ?? summary.revenue,
+  )
+  const paid = num(summary.paymentsReceived ?? summary.paidAmount ?? summary.paid)
+  const openAmt = num(
+    summary.openAccount ?? summary.openOrdersTotal ?? summary.openAmount,
+  )
+  const guests = num(summary.guestCount ?? summary.guests)
 
   const kpis: KpiMetric[] = [
     { label: 'Günlük Ciro', value: formatMoneyTR(ciro), delta: 0, unit: '₺' },
@@ -106,7 +122,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     { label: 'Konuk', value: formatMoneyTR(guests), delta: 0, unit: '' },
   ]
 
-  const channelsRaw = asMap(d.channels) ?? asMap(d.byChannel) ?? {}
+  const st = d.serviceTypeBreakdown
   const activeItems = Array.isArray(active.data?.items)
     ? active.data!.items!
     : Array.isArray(active.data?.orders)
@@ -124,43 +140,43 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     {
       key: 'online',
       label: 'Online',
-      value: `₺${formatMoneyTR(num(channelsRaw.online ?? channelsRaw.delivery))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 5) + serviceAmt(st, 7))}`,
       variant: 'neutral',
     },
     {
       key: 'paket',
       label: 'Paket',
-      value: `₺${formatMoneyTR(num(channelsRaw.paket ?? channelsRaw.package))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 1))}`,
       variant: 'neutral',
     },
     {
       key: 'gelal',
       label: 'Gel-al',
-      value: `₺${formatMoneyTR(num(channelsRaw.takeaway ?? channelsRaw.gelal))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 3))}`,
       variant: 'neutral',
     },
     {
       key: 'self',
       label: 'Self',
-      value: `₺${formatMoneyTR(num(channelsRaw.self))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 2))}`,
       variant: 'neutral',
     },
     {
       key: 'iptal',
       label: 'İptal',
-      value: `₺${formatMoneyTR(num(summary.cancelAmount ?? summary.iptal))}`,
+      value: `₺${formatMoneyTR(num(summary.cancellations ?? summary.cancelAmount))}`,
       variant: 'danger',
     },
     {
       key: 'zayi',
       label: 'Zayi',
-      value: `₺${formatMoneyTR(num(summary.wasteAmount ?? summary.zayi))}`,
+      value: `₺${formatMoneyTR(num(summary.waste ?? summary.wasteAmount))}`,
       variant: 'warning',
     },
     {
       key: 'indirim',
-      label: 'İndirim',
-      value: `₺${formatMoneyTR(num(summary.discountAmount ?? summary.indirim))}`,
+      label: 'İkram',
+      value: `₺${formatMoneyTR(num(summary.complimentaryTotal ?? summary.discountAmount))}`,
       variant: 'warning',
     },
   ]
@@ -194,12 +210,12 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     branchLabel: session.branchCode || 'HQ',
     kpis,
     channels,
-    alerts: alerts.length ? alerts : DIKKAT_ALERTS,
+    alerts,
     operasyonBadges: {
       online: num(onlinePending.data?.count),
       qr: num(qrPending.data?.count),
       hesaplar: Number(openTables) || 0,
-      stok: STOK_KPI.kritikAdet,
+      stok: 0,
     },
     source: 'api',
   }
@@ -223,7 +239,7 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   const day = todayYmd()
   const [sales, tx] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-      query: { from: day, to: day, part: 'full' },
+      query: { fromDay: day, toDay: day, part: 'full' },
     }),
     bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
       '/api/accounting/transactions',
@@ -233,18 +249,21 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
 
   if (!sales.ok && !tx.ok) return fallback
 
-  const summary = asMap(sales.data?.summary) ?? asMap(sales.data) ?? {}
-  const ciro = num(summary.totalRevenue ?? summary.revenue ?? 0)
-  const payments = asMap(sales.data?.payments) ?? asMap(summary.payments) ?? {}
+  const summary = asMap(sales.data?.summary) ?? {}
+  const ciro = num(summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue)
+  const paid = num(summary.paymentsReceived ?? summary.paidAmount)
+  const pb = Array.isArray(sales.data?.paymentBreakdown)
+    ? (sales.data!.paymentBreakdown as unknown[])
+    : []
 
   const slices: PaymentSlice[] = []
-  const entries = Object.entries(payments)
-  const sumPay = entries.reduce((a, [, v]) => a + num(v), 0) || 1
   const colors = ['#10b981', '#38bdf8', '#f59e0b', '#f43f5e', '#a78bfa']
-  entries.slice(0, 5).forEach(([label, v], i) => {
-    const amount = num(v)
+  const sumPay = pb.reduce((a, raw) => a + num(asMap(raw)?.amount), 0) || 1
+  pb.slice(0, 5).forEach((raw, i) => {
+    const row = asMap(raw) ?? {}
+    const amount = num(row.amount)
     slices.push({
-      label,
+      label: String(row.name ?? row.label ?? `Ödeme ${i + 1}`),
       value: Math.round((amount / sumPay) * 100),
       amount: `₺${formatMoneyTR(amount)}`,
       color: colors[i % colors.length],
@@ -272,35 +291,35 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   })
 
   return {
-    paymentMix: slices.length ? slices : PAYMENT_MIX,
-    totalLabel: `₺${formatMoneyTR(ciro || sumPay)}`,
+    paymentMix: slices,
+    totalLabel: `₺${formatMoneyTR(ciro || paid)}`,
     tiles: [
       {
         label: 'Açık Hesaplar',
-        value: `₺${formatMoneyTR(num(summary.openAmount))}`,
+        value: `₺${formatMoneyTR(num(summary.openAccount ?? summary.openOrdersTotal))}`,
         sub: 'bugün',
         variant: 'warning',
       },
       {
         label: 'Giderler',
-        value: `₺${formatMoneyTR(num(summary.expenseAmount ?? summary.gider))}`,
+        value: `₺${formatMoneyTR(num(summary.expenses))}`,
         sub: 'bugün',
         variant: 'danger',
       },
       {
         label: 'Tahsilatlar',
-        value: `₺${formatMoneyTR(num(summary.paidAmount ?? ciro))}`,
+        value: `₺${formatMoneyTR(paid || ciro)}`,
         sub: 'bugün',
         variant: 'success',
       },
       {
-        label: 'Ödemeler',
-        value: `₺${formatMoneyTR(num(summary.payableAmount))}`,
-        sub: 'bekleyen',
+        label: 'Zayi / İptal',
+        value: `₺${formatMoneyTR(num(summary.waste) + num(summary.cancellations))}`,
+        sub: 'bugün',
         variant: 'neutral',
       },
     ],
-    movements: movements.length ? movements : RECENT_MOVEMENTS,
+    movements,
     source: sales.ok || tx.ok ? 'api' : 'mock',
   }
   } catch {
