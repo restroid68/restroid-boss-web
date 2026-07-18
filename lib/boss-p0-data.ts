@@ -70,6 +70,85 @@ function serviceAmt(breakdown: unknown, id: number): number {
   return 0
 }
 
+/** JSON / nesne alanlarını UI metnine çevir (String(obj) → "[object Object]" olmasın). */
+function humanText(v: unknown, fallback = ''): string {
+  if (v == null) return fallback
+  if (typeof v === 'string') return v.trim() || fallback
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) {
+    const parts = v.map((x) => humanText(x, '')).filter(Boolean)
+    return parts.length ? parts.join(', ') : fallback
+  }
+  const m = asMap(v)
+  if (!m) return fallback
+  for (const key of [
+    'label',
+    'name',
+    'title',
+    'message',
+    'actionLabel',
+    'entityLabel',
+    'summary',
+    'before',
+    'after',
+  ]) {
+    const t = humanText(m[key], '')
+    if (t) return t
+  }
+  try {
+    const s = JSON.stringify(m)
+    return s.length > 80 ? `${s.slice(0, 77)}…` : s
+  } catch {
+    return fallback
+  }
+}
+
+const ACTION_TR: Record<string, string> = {
+  create: 'Oluşturma',
+  update: 'Güncelleme',
+  delete: 'Silme',
+  login: 'Giriş',
+  logout: 'Çıkış',
+  view: 'Görüntüleme',
+  export: 'Dışa aktarma',
+  undo: 'Geri alma',
+}
+
+function formatOperationAlert(raw: unknown, index: number): AlertRow {
+  const row = asMap(raw) ?? {}
+  const actionKey = humanText(row.action, 'işlem').toLowerCase()
+  const actionTr = ACTION_TR[actionKey] ?? humanText(row.action, 'İşlem')
+  const entity = humanText(row.entityType, '')
+  const actor = humanText(row.actorName, '')
+  const page = humanText(row.pageKey, '')
+  const detailText = humanText(row.detail, '')
+
+  const message = [actionTr, entity].filter(Boolean).join(' · ') || actionTr
+  const detail =
+    [actor, page && page !== entity ? page : '', detailText && detailText !== entity ? detailText : '']
+      .filter(Boolean)
+      .join(' · ') || '—'
+
+  const timeRaw = humanText(row.createdAt ?? row.time, '')
+  const time = timeRaw.includes('T')
+    ? timeRaw.slice(11, 16)
+    : timeRaw.slice(0, 5) || '--:--'
+
+  const critical =
+    actionKey.includes('delete') ||
+    actionKey.includes('cancel') ||
+    actionKey.includes('iptal') ||
+    humanText(row.severity, '').includes('critical')
+
+  return {
+    id: humanText(row.id, `log-${index}`),
+    type: critical ? 'kritik' : 'uyari',
+    message,
+    detail,
+    time,
+  }
+}
+
 export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback: AnaDashboardData = {
@@ -186,24 +265,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     : Array.isArray(logs.data?.logs)
       ? logs.data!.logs!
       : []
-  const alerts: AlertRow[] = logItems.slice(0, 5).map((raw, i) => {
-    const row = asMap(raw) ?? {}
-    const msg = String(row.message ?? row.actionLabel ?? row.action ?? 'İşlem')
-    const detail = String(row.detail ?? row.entityLabel ?? row.page ?? '')
-    const timeRaw = String(row.createdAt ?? row.time ?? '')
-    const time = timeRaw.includes('T')
-      ? timeRaw.slice(11, 16)
-      : timeRaw.slice(0, 5) || '--:--'
-    return {
-      id: String(row.id ?? `log-${i}`),
-      type: String(row.severity ?? '').includes('critical') || String(row.action).includes('delete')
-        ? 'kritik'
-        : 'uyari',
-      message: msg,
-      detail,
-      time,
-    }
-  })
+  const alerts: AlertRow[] = logItems.slice(0, 5).map((raw, i) => formatOperationAlert(raw, i))
 
   return {
     restaurantName: session.restaurantName || fallback.restaurantName,
@@ -347,7 +409,7 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
 
   const alerts: AuditAlert[] = items.map((raw, i) => {
     const row = asMap(raw) ?? {}
-    const action = String(row.action ?? row.actionKey ?? '').toLowerCase()
+    const action = humanText(row.action ?? row.actionKey, '').toLowerCase()
     let category: AuditAlert['category'] = 'Tümü'
     if (action.includes('cancel') || action.includes('iptal')) category = 'İptal'
     else if (action.includes('delete') || action.includes('sil')) category = 'Silme'
@@ -360,15 +422,22 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
         ? 'kritik'
         : 'uyari'
 
+    const actionTr = ACTION_TR[action] ?? humanText(row.action, 'İşlem')
+    const entity = humanText(row.entityType, '')
+    const detailAmt = asMap(row.detail)?.amount
+
     return {
-      id: String(row.id ?? i),
+      id: humanText(row.id, String(i)),
       severity,
       category,
-      title: String(row.actionLabel ?? row.message ?? row.action ?? 'İşlem'),
-      who: String(row.userName ?? row.actorName ?? row.email ?? '—'),
-      target: String(row.entityLabel ?? row.page ?? row.target ?? '—'),
-      amount: row.amount != null ? `₺${formatMoneyTR(num(row.amount))}` : '—',
-      time: String(row.createdAt ?? '').slice(11, 16) || '--:--',
+      title: entity ? `${actionTr} · ${entity}` : actionTr,
+      who: humanText(row.userName ?? row.actorName ?? row.email, '—'),
+      target: humanText(row.entityLabel ?? row.pageKey ?? row.page ?? row.target, '—'),
+      amount:
+        detailAmt != null || row.amount != null
+          ? `₺${formatMoneyTR(num(detailAmt ?? row.amount))}`
+          : '—',
+      time: humanText(row.createdAt, '').slice(11, 16) || '--:--',
     }
   })
 
