@@ -45,11 +45,23 @@ export async function bossFetch<T = unknown>(
   void _q
 
   try {
-    const res = await fetch(url.toString(), {
-      ...fetchInit,
-      headers: { ...authHeaders(), ...(fetchInit.headers ?? {}) },
-      cache: 'no-store',
-    })
+    const timeoutMs = 12_000
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    if (fetchInit.signal) {
+      fetchInit.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+    let res: Response
+    try {
+      res = await fetch(url.toString(), {
+        ...fetchInit,
+        headers: { ...authHeaders(), ...(fetchInit.headers ?? {}) },
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
     const text = await res.text()
     let data: unknown = null
     if (text) {

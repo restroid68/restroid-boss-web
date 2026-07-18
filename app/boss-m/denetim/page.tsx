@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import type { AlertFilter, AuditAlert } from '@/lib/boss-mock'
+import { AUDIT_ALERTS, type AlertFilter, type AuditAlert } from '@/lib/boss-mock'
 import { loadDenetimDashboard } from '@/lib/boss-p0-data'
-import { onNativeSession } from '@/lib/boss-bridge'
+import { useBossLoad } from '@/hooks/use-boss-load'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, AlertCircle, Radio, SearchX } from 'lucide-react'
 
@@ -18,28 +18,14 @@ function severityCount(alerts: AuditAlert[], severity: AuditAlert['severity']) {
 
 export default function BossMDenetimPage() {
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('Tümü')
-  const [alerts, setAlerts] = useState<AuditAlert[] | null>(null)
-  const [source, setSource] = useState<'api' | 'mock'>('mock')
+  const { data, loading } = useBossLoad(loadDenetimDashboard, {
+    alerts: AUDIT_ALERTS,
+    source: 'mock',
+  })
+  const alerts = data.alerts
+  const source = data.source
 
-  useEffect(() => {
-    let cancelled = false
-    const reload = () => {
-      loadDenetimDashboard().then((d) => {
-        if (!cancelled) {
-          setAlerts(d.alerts)
-          setSource(d.source)
-        }
-      })
-    }
-    reload()
-    const off = onNativeSession(() => reload())
-    return () => {
-      cancelled = true
-      off()
-    }
-  }, [])
-
-  if (!alerts) {
+  if (loading) {
     return (
       <main className="flex flex-col gap-4 pb-4">
         <BossMPageHeader title="Denetim" />

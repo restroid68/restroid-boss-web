@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import type { Account, LedgerEntry } from '@/lib/boss-mock'
+import { ACCOUNTS, LEDGER_ENTRIES, type Account } from '@/lib/boss-mock'
 import { loadKasaDashboard } from '@/lib/boss-p0-data'
-import { onNativeSession } from '@/lib/boss-bridge'
+import { useBossLoad } from '@/hooks/use-boss-load'
 import { cn } from '@/lib/utils'
 import {
   Wallet,
@@ -35,31 +35,21 @@ const ACTIONS = [
 
 export default function BossMCashPage() {
   const router = useRouter()
-  const [accounts, setAccounts] = useState<Account[] | null>(null)
-  const [ledger, setLedger] = useState<LedgerEntry[]>([])
+  const { data, loading } = useBossLoad(loadKasaDashboard, {
+    accounts: ACCOUNTS,
+    ledger: LEDGER_ENTRIES,
+    source: 'mock',
+  })
+  const accounts = data.accounts
+  const ledger = data.ledger
+  const source = data.source
   const [selectedId, setSelectedId] = useState<string>('')
-  const [source, setSource] = useState<'api' | 'mock'>('mock')
 
   useEffect(() => {
-    let cancelled = false
-    const reload = () => {
-      loadKasaDashboard().then((d) => {
-        if (cancelled) return
-        setAccounts(d.accounts)
-        setLedger(d.ledger)
-        setSource(d.source)
-        setSelectedId((prev) => prev || d.accounts[0]?.id || '')
-      })
-    }
-    reload()
-    const off = onNativeSession(() => reload())
-    return () => {
-      cancelled = true
-      off()
-    }
-  }, [])
+    setSelectedId((prev) => prev || accounts[0]?.id || '')
+  }, [accounts])
 
-  if (!accounts) {
+  if (loading) {
     return (
       <main className="flex flex-col gap-4 pb-4">
         <BossMPageHeader title="Kasa & Banka" />
@@ -69,6 +59,18 @@ export default function BossMCashPage() {
   }
 
   const account = accounts.find((a) => a.id === selectedId) ?? accounts[0]
+  if (!account) {
+    return (
+      <main className="flex flex-col gap-4 pb-4">
+        <BossMPageHeader title="Kasa & Banka" />
+        <BossMEmptyState
+          icon={Inbox}
+          title="Hesap bulunamadı"
+          description="Kasa veya banka hesabı tanımlı değil."
+        />
+      </main>
+    )
+  }
   const Icon = accountIcons[account.type]
 
   return (

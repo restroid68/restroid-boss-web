@@ -74,6 +74,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
 
   if (!session?.token) return fallback
 
+  try {
   const day = todayYmd()
   const [sales, onlinePending, qrPending, active, logs] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
@@ -202,6 +203,9 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     },
     source: 'api',
   }
+  } catch {
+    return fallback
+  }
 }
 
 export async function loadFinansDashboard(): Promise<FinansDashboardData> {
@@ -215,6 +219,7 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   }
   if (!session?.token) return fallback
 
+  try {
   const day = todayYmd()
   const [sales, tx] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
@@ -298,17 +303,22 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
     movements: movements.length ? movements : RECENT_MOVEMENTS,
     source: sales.ok || tx.ok ? 'api' : 'mock',
   }
+  } catch {
+    return fallback
+  }
 }
 
 export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   const session = readNativeSession()
-  if (!session?.token) return { alerts: AUDIT_ALERTS, source: 'mock' }
+  const fallback: DenetimDashboardData = { alerts: AUDIT_ALERTS, source: 'mock' }
+  if (!session?.token) return fallback
 
+  try {
   const logs = await bossFetch<{ items?: unknown[]; logs?: unknown[] }>(
     '/api/operation-logs',
     { query: { page: '1', pageSize: '40' } },
   )
-  if (!logs.ok) return { alerts: AUDIT_ALERTS, source: 'mock' }
+  if (!logs.ok) return fallback
 
   const items = Array.isArray(logs.data?.items)
     ? logs.data!.items!
@@ -344,14 +354,21 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   })
 
   return { alerts: alerts.length ? alerts : AUDIT_ALERTS, source: 'api' }
+  } catch {
+    return fallback
+  }
 }
 
 export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   const session = readNativeSession()
-  if (!session?.token) {
-    return { accounts: ACCOUNTS, ledger: LEDGER_ENTRIES, source: 'mock' }
+  const fallback: KasaDashboardData = {
+    accounts: ACCOUNTS,
+    ledger: LEDGER_ENTRIES,
+    source: 'mock',
   }
+  if (!session?.token) return fallback
 
+  try {
   const [meta, tx] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/accounting/meta'),
     bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
@@ -408,6 +425,9 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
     accounts: accounts.length ? accounts : ACCOUNTS,
     ledger: ledger.length ? ledger : LEDGER_ENTRIES,
     source: meta.ok || tx.ok ? 'api' : 'mock',
+  }
+  } catch {
+    return fallback
   }
 }
 

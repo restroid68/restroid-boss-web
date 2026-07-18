@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
 import { BossMChannelGrid } from '@/components/boss/ana/BossMChannelGrid'
 import { BossMDikkatList } from '@/components/boss/ana/BossMDikkatList'
 import { BossMOperasyonChipsRow } from '@/components/boss/ana/BossMOperasyonChips'
 import { BossMSubelerTeaser } from '@/components/boss/ana/BossMSubelerTeaser'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { BRANCHES } from '@/lib/boss-mock'
+import { ANA_KPIS, BRANCHES, CHANNEL_CARDS, DIKKAT_ALERTS, STOK_KPI } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
-import { onNativeSession, postToNative, readNativeSession } from '@/lib/boss-bridge'
+import { postToNative, readNativeSession } from '@/lib/boss-bridge'
+import { useBossLoad } from '@/hooks/use-boss-load'
 import { Store, ChevronDown } from 'lucide-react'
 
 const BRANCH_REVENUE: Record<string, string> = {
@@ -18,30 +18,25 @@ const BRANCH_REVENUE: Record<string, string> = {
   b3: '₺11.5K',
 }
 
+const ANA_FALLBACK: AnaDashboardData = {
+  restaurantName: 'Restroid',
+  branchLabel: 'HQ',
+  kpis: ANA_KPIS,
+  channels: CHANNEL_CARDS,
+  alerts: DIKKAT_ALERTS,
+  operasyonBadges: { stok: STOK_KPI.kritikAdet },
+  source: 'mock',
+}
+
 export default function BossMDashboard() {
-  const [data, setData] = useState<AnaDashboardData | null>(null)
+  const { data, loading } = useBossLoad(loadAnaDashboard, ANA_FALLBACK)
   const today = new Intl.DateTimeFormat('tr-TR', {
     day: 'numeric',
     month: 'long',
     weekday: 'long',
   }).format(new Date())
 
-  useEffect(() => {
-    let cancelled = false
-    const reload = () => {
-      loadAnaDashboard().then((d) => {
-        if (!cancelled) setData(d)
-      })
-    }
-    reload()
-    const off = onNativeSession(() => reload())
-    return () => {
-      cancelled = true
-      off()
-    }
-  }, [])
-
-  if (!data) {
+  if (loading) {
     return (
       <main className="flex flex-col gap-4 pb-4 pt-5">
         <BossMSkeletonKpiRow />
