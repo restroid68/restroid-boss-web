@@ -50,15 +50,15 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
-/* ── RestroidBOSS Dark Theme (always dark — WebView) ── */
-/* Varsayılan = sol menü header mavisi (#1A1F33 / #2979FF). Tema sayfasından değişir. */
+/* RestroidBOSS dark theme (always dark in WebView) */
+/* Default drawer header blue (#1A1F33 / #2979FF). Overridden from theme page. */
 :root {
   color-scheme: dark;
 
   --background:        #070B14;
   --foreground:        #E8EEF8;
 
-  /* Kartlar — drawer surface tonları */
+  /* Cards - drawer surface tones */
   --card:              #1A1F33;
   --card-foreground:   #E8EEF8;
   --surface-1:         #1A1F33;
@@ -98,14 +98,14 @@
   --radius: 0.75rem;
 }
 
-/* ── WebView / App Store constraints ── */
+/* WebView / App Store constraints */
 html, body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
-  /* pan-y: dikey kaydırma WebView’de çalışsın (manipulation tek başına yetmez) */
+  /* pan-y: allow vertical scroll in WebView (manipulation alone is not enough) */
   touch-action: pan-y;
   -webkit-tap-highlight-color: transparent;
   scrollbar-width: none;          /* Firefox */
@@ -135,7 +135,7 @@ body::-webkit-scrollbar { display: none; }
   }
 }
 
-/* Soft keyboard � Flutter alt nav gizlenince SPA alt bo�lu�unu k���lt */
+/* Soft keyboard open: shrink SPA bottom padding (Flutter nav hidden) */
 html[data-keyboard='1'] .boss-native-scroll {
   padding-bottom: 0.75rem !important;
 }
