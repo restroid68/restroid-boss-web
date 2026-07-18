@@ -201,6 +201,20 @@ export interface SistemCard {
 
 export const SISTEM_CARDS: SistemCard[] = [
   {
+    id: 'gorunum',
+    title: 'Görünüm',
+    description: 'Yazı boyutu: küçük, normal veya büyük',
+    href: '/boss-m/sistem/gorunum',
+    icon: 'type',
+  },
+  {
+    id: 'tema',
+    title: 'Tema rengi',
+    description: 'Kart ve vurgu renklerini seç',
+    href: '/boss-m/sistem/tema',
+    icon: 'palette',
+  },
+  {
     id: 'kanallar',
     title: 'Servis Kanalları',
     description: 'Dine-in, paket, gel-al, self, online ve QR kanallarını yönet',

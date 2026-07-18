@@ -8,6 +8,8 @@ import {
   Flame,
   MonitorSmartphone,
   ChevronRight,
+  Type,
+  Palette,
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { SISTEM_CARDS } from '@/lib/boss-mock'
@@ -15,6 +17,8 @@ import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadSistemHub } from '@/lib/boss-page-data'
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  type: Type,
+  palette: Palette,
   signal:       Signal,
   'credit-card': CreditCard,
   layout:       LayoutGrid,
@@ -48,7 +52,7 @@ export default function BossMSistemPage() {
       <div className="flex flex-col gap-2 px-4">
         {loading ? (
           <div className="flex flex-col gap-2 animate-pulse">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(7)].map((_, i) => (
               <div key={i} className="h-20 bg-surface-2 rounded-2xl" />
             ))}
           </div>

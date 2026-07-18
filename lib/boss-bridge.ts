@@ -15,6 +15,10 @@ export type BossNativeSession = {
   /** UI dili: tr | en (Flutter cihaz / panel dili) */
   locale?: string
   apiEnv?: string
+  /** Cihazda saklanan görünüm (yazı boyutu + tema) */
+  appearance?: { fontScale?: string; themeAccent?: string }
+  fontScale?: string
+  themeAccent?: string
 }
 
 export type BossToNativeMessage =
@@ -27,6 +31,7 @@ export type BossToNativeMessage =
   | { type: 'openExternal'; url: string }
   | { type: 'navigate'; path: string }
   | { type: 'ready' }
+  | { type: 'appearance'; fontScale: string; themeAccent: string }
 
 type TranscriptHandler = (text: string) => void
 type SessionHandler = (session: BossNativeSession) => void
