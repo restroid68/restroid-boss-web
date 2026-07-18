@@ -560,25 +560,140 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   }
 }
 
+export type BossAiAskApiProductDraft = {
+  mode?: 'create' | 'update'
+  name?: string
+  price?: number | null
+  priceDisplay?: string
+  category?: string
+  taxLabel?: string
+  plu?: string
+  canConfirm?: boolean
+  pendingClarification?: string | null
+  clarificationPrompt?: string
+  warnings?: string[]
+  productionAreaNames?: string[]
+  [key: string]: unknown
+}
+
+export type BossAiAskApiAnalysis = {
+  compare?: string
+  productName?: string | null
+  current?: {
+    label?: string
+    from?: string
+    to?: string
+    netSales?: number
+    productQty?: number | null
+    productRevenue?: number | null
+  }
+  previous?: {
+    label?: string
+    from?: string
+    to?: string
+    netSales?: number
+    productQty?: number | null
+    productRevenue?: number | null
+  }
+  deltas?: {
+    netSalesPct?: number | null
+    productRevenuePct?: number | null
+    productQtyPct?: number | null
+  }
+}
+
+export type BossAiAskApiChart = {
+  type?: 'bar' | 'compare'
+  title?: string
+  series?: Array<{ label: string; value: number }>
+  seriesB?: Array<{ label: string; value: number }>
+  seriesALabel?: string
+  seriesBLabel?: string
+}
+
+export type BossAiAskApiResult = {
+  ok: boolean
+  answer: string
+  intent?: string
+  productDraft?: BossAiAskApiProductDraft | null
+  analysis?: BossAiAskApiAnalysis | null
+  charts?: BossAiAskApiChart[]
+  period?: { from?: string; to?: string; days?: number } | null
+  error?: string
+}
+
 export async function askBossAiApi(
   question: string,
   history: Array<{ role: string; content: string }> = [],
-): Promise<{ ok: boolean; answer: string }> {
+  opts?: {
+    days?: number
+    pendingProductDraft?: BossAiAskApiProductDraft | null
+  },
+): Promise<BossAiAskApiResult> {
   const session = readNativeSession()
-  if (!session?.token) return { ok: false, answer: '' }
+  if (!session?.token) return { ok: false, answer: '', error: 'Oturum yok' }
 
-  const res = await bossFetch<{ answer?: string; text?: string; message?: string }>(
-    '/api/boss/ai/ask',
+  const res = await bossFetch<{
+    answer?: string
+    text?: string
+    message?: string
+    intent?: string
+    productDraft?: BossAiAskApiProductDraft | null
+    analysis?: BossAiAskApiAnalysis | null
+    charts?: BossAiAskApiChart[]
+    period?: { from?: string; to?: string; days?: number } | null
+    error?: string
+  }>('/api/boss/ai/ask', {
+    method: 'POST',
+    body: JSON.stringify({
+      question,
+      days: opts?.days ?? 7,
+      history: history.map((h) => ({ role: h.role, content: h.content })),
+      ...(opts?.pendingProductDraft
+        ? { pendingProductDraft: opts.pendingProductDraft }
+        : {}),
+    }),
+  })
+  if (!res.ok || !res.data) {
+    return {
+      ok: false,
+      answer: '',
+      error: String(res.error ?? 'AI yanıtı alınamadı'),
+    }
+  }
+  const answer = String(res.data.answer ?? res.data.text ?? res.data.message ?? '')
+  return {
+    ok: Boolean(answer),
+    answer,
+    intent: res.data.intent,
+    productDraft: res.data.productDraft ?? null,
+    analysis: res.data.analysis ?? null,
+    charts: Array.isArray(res.data.charts) ? res.data.charts : [],
+    period: res.data.period ?? null,
+    error: res.data.error,
+  }
+}
+
+export async function confirmBossAiProductApi(
+  draft: BossAiAskApiProductDraft,
+): Promise<{ ok: boolean; message: string }> {
+  const session = readNativeSession()
+  if (!session?.token) return { ok: false, message: 'Oturum yok' }
+  const res = await bossFetch<{ ok?: boolean; message?: string; error?: string }>(
+    '/api/boss/ai/confirm-product',
     {
       method: 'POST',
-      body: JSON.stringify({
-        question,
-        days: 7,
-        history: history.map((h) => ({ role: h.role, content: h.content })),
-      }),
+      body: JSON.stringify({ draft }),
     },
   )
-  if (!res.ok || !res.data) return { ok: false, answer: '' }
-  const answer = String(res.data.answer ?? res.data.text ?? res.data.message ?? '')
-  return { ok: Boolean(answer), answer }
+  if (!res.ok) {
+    return {
+      ok: false,
+      message: String(res.error ?? 'Ürün kaydı başarısız'),
+    }
+  }
+  return {
+    ok: true,
+    message: String(res.data?.message ?? 'Ürün kaydedildi.'),
+  }
 }
