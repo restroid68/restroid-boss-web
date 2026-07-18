@@ -31,12 +31,13 @@ const ACTION_EN: Record<string, string> = {
   other: 'Other',
 }
 
-/** Entity EN — kısa; TR map’te yoksa Title Case yerine okunur İngilizce. */
+/** Entity EN — kısa; bilinmeyen → "Record" (ham key / Title Case yok). */
 const ENTITY_EN: Record<string, string> = {
   accounting_transaction: 'Accounting entry',
   finance_account: 'Finance account',
   supplier: 'Supplier',
   customer: 'Customer',
+  inventory: 'Inventory',
   inventory_count: 'Inventory count',
   saas_platform_product: 'Platform product',
   sales_pos_personnel_unlock: 'POS personnel unlock',
@@ -63,18 +64,19 @@ const EXTRA_ENTITY_TR: Record<string, string> = {
   qr_menu_order: 'QR sipariş',
   branch: 'Şube',
   stock: 'Stok',
+  inventory: 'Stok',
+  inventory_count: 'Stok sayımı',
   settings: 'Ayarlar',
 }
 
+/**
+ * Boss ürün dili varsayılan TR.
+ * Yalnızca oturumda açıkça `en` varsa İngilizce (cihaz navigator dili yok sayılır).
+ */
 export function resolveBossUiLocale(explicit?: string | null): BossUiLocale {
   const fromSession = readNativeSession()?.locale?.trim().toLowerCase()
   const raw = (explicit || fromSession || '').trim().toLowerCase()
   if (raw.startsWith('en')) return 'en'
-  if (raw.startsWith('tr')) return 'tr'
-  if (typeof navigator !== 'undefined') {
-    const nav = (navigator.language || '').toLowerCase()
-    if (nav.startsWith('en')) return 'en'
-  }
   return 'tr'
 }
 
@@ -119,7 +121,7 @@ export function labelOpEntity(raw: string, locale?: BossUiLocale): string {
     return (
       lookup(ENTITY_EN, key) ||
       lookup(BOSS_PAGE_LABELS_EN, key) ||
-      key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      'Record'
     )
   }
   return (

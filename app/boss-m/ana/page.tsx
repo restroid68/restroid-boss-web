@@ -22,7 +22,10 @@ const ANA_FALLBACK: AnaDashboardData = {
 }
 
 export default function BossMDashboard() {
-  const { data, loading } = useBossLoad(loadAnaDashboard, ANA_FALLBACK)
+  const { data, loading } = useBossLoad(loadAnaDashboard, ANA_FALLBACK, {
+    cacheKey: 'page:ana',
+    ttlMs: 45_000,
+  })
   const today = new Intl.DateTimeFormat('tr-TR', {
     day: 'numeric',
     month: 'long',

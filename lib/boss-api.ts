@@ -1,5 +1,10 @@
 import { getBossApiPrefix } from '@/lib/boss-config'
 import { readNativeSession } from '@/lib/boss-bridge'
+import {
+  BOSS_TTL,
+  CACHE_KEY_SALES_TODAY,
+  withBossCache,
+} from '@/lib/boss-page-cache'
 
 export type BossApiResult<T = unknown> = {
   ok: boolean
@@ -93,6 +98,22 @@ export function todayYmd(): string {
   const d = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Ana / Finans / Z fallback — paylaşılan L1 cache. */
+export async function fetchSalesAnalysisTodayFull(): Promise<
+  BossApiResult<Record<string, unknown>>
+> {
+  const day = todayYmd()
+  return withBossCache(
+    CACHE_KEY_SALES_TODAY,
+    BOSS_TTL.kpi,
+    () =>
+      bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
+        query: { fromDay: day, toDay: day, part: 'full' },
+      }),
+    { isCacheable: (r) => Boolean(r.ok && r.data) },
+  )
 }
 
 export function formatMoneyTR(n: number): string {

@@ -41,8 +41,20 @@ import {
   SAHIP_RAPORLAR,
   Z_REPORTS,
 } from '@/lib/boss-mock'
-import { bossFetch, formatMoneyTR, todayYmd } from '@/lib/boss-api'
+import {
+  bossFetch,
+  fetchSalesAnalysisTodayFull,
+  formatMoneyTR,
+  todayYmd,
+} from '@/lib/boss-api'
 import { readNativeSession } from '@/lib/boss-bridge'
+import {
+  BOSS_TTL,
+  CACHE_KEY_SISTEM_HUB,
+  CACHE_KEY_STOK_HUB,
+  invalidateBossCache,
+  withBossCache,
+} from '@/lib/boss-page-cache'
 
 function num(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
@@ -144,34 +156,41 @@ export type CatalogPageData = {
 }
 
 export async function loadCatalogPage(): Promise<CatalogPageData> {
-  const fallback: CatalogPageData = {
-    items: MENU_ITEMS,
-    categories: MENU_CATEGORIES,
-    products: PRODUCTS,
-    productCategories: PRODUCT_CATEGORIES,
-    source: 'mock',
-  }
-  const session = readNativeSession()
-  if (!session?.token) return fallback
+  return withBossCache(
+    'page:catalog',
+    BOSS_TTL.definitions,
+    async () => {
+      const fallback: CatalogPageData = {
+        items: MENU_ITEMS,
+        categories: MENU_CATEGORIES,
+        products: PRODUCTS,
+        productCategories: PRODUCT_CATEGORIES,
+        source: 'mock',
+      }
+      const session = readNativeSession()
+      if (!session?.token) return fallback
 
-  const res = await bossFetch<{ rows?: CatalogRow[]; total?: number }>(
-    '/api/products/catalog/page',
-    { query: { offset: '0', limit: '200' } },
+      const res = await bossFetch<{ rows?: CatalogRow[]; total?: number }>(
+        '/api/products/catalog/page',
+        { query: { offset: '0', limit: '200' } },
+      )
+      if (!res.ok || !res.data) return fallback
+      const rows = asList(res.data.rows) as CatalogRow[]
+      if (!rows.length) return fallback
+
+      const items = rows.map(mapCatalogRow)
+      const cats = Array.from(new Set(items.map((i) => i.category))).sort()
+      const products = items.map(toProduct)
+      return {
+        items,
+        categories: ['Tümü', ...cats],
+        products,
+        productCategories: ['Tümü', ...cats],
+        source: 'api' as const,
+      }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
   )
-  if (!res.ok || !res.data) return fallback
-  const rows = asList(res.data.rows) as CatalogRow[]
-  if (!rows.length) return fallback
-
-  const items = rows.map(mapCatalogRow)
-  const cats = Array.from(new Set(items.map((i) => i.category))).sort()
-  const products = items.map(toProduct)
-  return {
-    items,
-    categories: ['Tümü', ...cats],
-    products,
-    productCategories: ['Tümü', ...cats],
-    source: 'api',
-  }
 }
 
 export async function patchProductStockStatus(
@@ -185,6 +204,10 @@ export async function patchProductStockStatus(
       bulkProductPatches: [{ row: { uuid, code, stockStatus } }],
     }),
   })
+  if (res.ok) {
+    invalidateBossCache('page:catalog')
+    invalidateBossCache('fn:loadCatalogPage')
+  }
   return res.ok
 }
 
@@ -260,38 +283,45 @@ export type KanallarPageData = {
 }
 
 export async function loadKanallarPage(): Promise<KanallarPageData> {
-  const session = readNativeSession()
-  if (!session?.token) return { channels: SERVICE_CHANNELS, source: 'mock' }
+  return withBossCache(
+    'page:kanallar',
+    BOSS_TTL.definitions,
+    async () => {
+      const session = readNativeSession()
+      if (!session?.token) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
 
-  const res = await bossFetch<unknown>('/api/service-channels')
-  if (!res.ok || res.data == null) return { channels: SERVICE_CHANNELS, source: 'mock' }
+      const res = await bossFetch<unknown>('/api/service-channels')
+      if (!res.ok || res.data == null) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
 
-  const raw = Array.isArray(res.data)
-    ? res.data
-    : asList(asMap(res.data)?.channels ?? asMap(res.data)?.items ?? asMap(res.data)?.rows)
+      const raw = Array.isArray(res.data)
+        ? res.data
+        : asList(asMap(res.data)?.channels ?? asMap(res.data)?.items ?? asMap(res.data)?.rows)
 
-  if (!raw.length) return { channels: SERVICE_CHANNELS, source: 'mock' }
+      if (!raw.length) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
 
-  const channels: ServiceChannel[] = raw.map((r) => {
-    const row = asMap(r) ?? {}
-    const code = str(row.code ?? row.id).toLowerCase()
-    const meta = CHANNEL_META[code] ?? {
-      label: str(row.nameTr ?? row.name ?? row.label, code),
-      description: str(row.description, 'Servis kanalı'),
-    }
-    return {
-      id: code || str(row.id),
-      label: meta.label,
-      description: meta.description,
-      enabled:
-        row.isActive === true ||
-        row.enabled === true ||
-        row.isEnabled === true ||
-        row.active === true,
-    }
-  })
+      const channels: ServiceChannel[] = raw.map((r) => {
+        const row = asMap(r) ?? {}
+        const code = str(row.code ?? row.id).toLowerCase()
+        const meta = CHANNEL_META[code] ?? {
+          label: str(row.nameTr ?? row.name ?? row.label, code),
+          description: str(row.description, 'Servis kanalı'),
+        }
+        return {
+          id: code || str(row.id),
+          label: meta.label,
+          description: meta.description,
+          enabled:
+            row.isActive === true ||
+            row.enabled === true ||
+            row.isEnabled === true ||
+            row.active === true,
+        }
+      })
 
-  return { channels, source: 'api' }
+      return { channels, source: 'api' as const }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
+  )
 }
 
 export async function patchServiceChannelEnabled(code: string, enabled: boolean): Promise<boolean> {
@@ -300,6 +330,12 @@ export async function patchServiceChannelEnabled(code: string, enabled: boolean)
     // cloud: tenantPatchServiceChannelActive → body.isActive
     body: JSON.stringify({ isActive: enabled }),
   })
+  if (res.ok) {
+    invalidateBossCache('page:kanallar')
+    invalidateBossCache(CACHE_KEY_SISTEM_HUB)
+    invalidateBossCache('fn:loadKanallarPage')
+    invalidateBossCache('fn:loadSistemHub')
+  }
   return res.ok
 }
 
@@ -312,7 +348,7 @@ export type StokHubData = {
   source: 'api' | 'mock'
 }
 
-export async function loadStokHub(): Promise<StokHubData> {
+async function loadStokHubUncached(): Promise<StokHubData> {
   const fallback: StokHubData = {
     warehouses: STOK_WAREHOUSES,
     items: STOK_ITEMS,
@@ -404,6 +440,13 @@ export async function loadStokHub(): Promise<StokHubData> {
     },
     source: defRes.ok || whRes.ok ? 'api' : 'mock',
   }
+}
+
+/** Sayım / transfer / fire aynı L1 kaydını paylaşır — hub yeniden çekilmez. */
+export async function loadStokHub(): Promise<StokHubData> {
+  return withBossCache(CACHE_KEY_STOK_HUB, BOSS_TTL.kpi, loadStokHubUncached, {
+    isCacheable: (d) => d.source === 'api',
+  })
 }
 
 export type SayimlarPageData = {
@@ -582,6 +625,44 @@ export type OrdersPageData = {
   source: 'api' | 'mock'
 }
 
+/** API status / statusLabel → Türkçe; ham enum UI’ya düşmez. */
+const ORDER_STATUS_TR: Record<string, string> = {
+  pending: 'Beklemede',
+  new: 'Yeni',
+  accepted: 'Onaylandı',
+  confirmed: 'Onaylandı',
+  preparing: 'Hazırlanıyor',
+  preparation: 'Hazırlanıyor',
+  in_preparation: 'Hazırlanıyor',
+  ready: 'Hazır',
+  out_for_delivery: 'Yolda',
+  delivering: 'Yolda',
+  on_the_way: 'Yolda',
+  delivered: 'Teslim',
+  completed: 'Tamamlandı',
+  done: 'Tamamlandı',
+  cancelled: 'İptal',
+  canceled: 'İptal',
+  rejected: 'Reddedildi',
+  failed: 'Başarısız',
+  refunded: 'İade',
+  scheduled: 'Zamanlanmış',
+  picked_up: 'Teslim alındı',
+  pickup: 'Gel-al',
+}
+
+function labelOrderStatus(raw: unknown): string {
+  const s = str(raw).trim()
+  if (!s || s === '—') return '—'
+  // Zaten Türkçe görünüyorsa (boşluk / Türkçe karakter) olduğu gibi bırak
+  if (/[çğıöşüÇĞİÖŞÜ ]/.test(s) || !/^[a-zA-Z0-9_-]+$/.test(s)) return s
+  const key = s
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[\s-]+/g, '_')
+    .toLowerCase()
+  return ORDER_STATUS_TR[key] ?? 'Durum'
+}
+
 function mapOrderRows(raw: unknown[]): BossOrderRow[] {
   return raw.map((r, i) => {
     const row = asMap(r) ?? {}
@@ -593,7 +674,7 @@ function mapOrderRows(raw: unknown[]): BossOrderRow[] {
         `Sipariş ${i + 1}`,
       ),
       platform: str(row.platformName ?? row.platform ?? row.source ?? 'Online'),
-      status: str(row.statusLabel ?? row.status ?? '—'),
+      status: labelOrderStatus(row.statusLabel ?? row.status ?? '—'),
       amount: `₺${formatMoneyTR(amount)}`,
       time: fmtDateTime(row.createdAt ?? row.orderedAt),
       customer: str(row.customerName ?? row.guestName ?? row.phone, '—'),
@@ -641,36 +722,43 @@ export type SistemOdemeData = {
 }
 
 export async function loadOdemePage(): Promise<SistemOdemeData> {
-  const session = readNativeSession()
-  const mock: PaymentTypeRow[] = [
-    { id: '1', name: 'Nakit', active: true },
-    { id: '2', name: 'Kredi Kartı', active: true },
-    { id: '3', name: 'Yemek Kartı', active: true },
-    { id: '4', name: 'Havale', active: false },
-    { id: '5', name: 'Cari', active: true },
-  ]
-  if (!session?.token) return { payments: mock, source: 'mock' }
+  return withBossCache(
+    'page:odeme',
+    BOSS_TTL.definitions,
+    async () => {
+      const session = readNativeSession()
+      const mock: PaymentTypeRow[] = [
+        { id: '1', name: 'Nakit', active: true },
+        { id: '2', name: 'Kredi Kartı', active: true },
+        { id: '3', name: 'Yemek Kartı', active: true },
+        { id: '4', name: 'Havale', active: false },
+        { id: '5', name: 'Cari', active: true },
+      ]
+      if (!session?.token) return { payments: mock, source: 'mock' as const }
 
-  const res = await bossFetch<unknown>('/api/definitions/payment-types')
-  if (!res.ok || res.data == null) return { payments: mock, source: 'mock' }
+      const res = await bossFetch<unknown>('/api/definitions/payment-types')
+      if (!res.ok || res.data == null) return { payments: mock, source: 'mock' as const }
 
-  const raw = Array.isArray(res.data)
-    ? res.data
-    : asList(asMap(res.data)?.items ?? asMap(res.data)?.rows ?? asMap(res.data)?.paymentTypes)
+      const raw = Array.isArray(res.data)
+        ? res.data
+        : asList(asMap(res.data)?.items ?? asMap(res.data)?.rows ?? asMap(res.data)?.paymentTypes)
 
-  if (!raw.length) return { payments: mock, source: 'mock' }
+      if (!raw.length) return { payments: mock, source: 'mock' as const }
 
-  const payments = raw.map((r, i) => {
-    const row = asMap(r) ?? {}
-    return {
-      id: str(row.id ?? row.uuid ?? i),
-      name: str(row.nameTr ?? row.name ?? row.label, `Ödeme ${i + 1}`),
-      active: row.active !== false && row.isActive !== false,
-      code: str(row.code) || undefined,
-    }
-  })
+      const payments = raw.map((r, i) => {
+        const row = asMap(r) ?? {}
+        return {
+          id: str(row.id ?? row.uuid ?? i),
+          name: str(row.nameTr ?? row.name ?? row.label, `Ödeme ${i + 1}`),
+          active: row.active !== false && row.isActive !== false,
+          code: str(row.code) || undefined,
+        }
+      })
 
-  return { payments, source: 'api' }
+      return { payments, source: 'api' as const }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
+  )
 }
 
 export type SalonRow = {
@@ -687,41 +775,48 @@ export type SistemSalonData = {
 }
 
 export async function loadSalonPage(): Promise<SistemSalonData> {
-  const session = readNativeSession()
-  if (!session?.token) {
-    return {
-      salons: [
-        { id: '1', name: 'Ana Salon', tableCount: 20, capacity: 80 },
-        { id: '2', name: 'Teras', tableCount: 12, capacity: 40 },
-      ],
-      totalTables: 32,
-      source: 'mock',
-    }
-  }
+  return withBossCache(
+    'page:salon',
+    BOSS_TTL.definitions,
+    async () => {
+      const session = readNativeSession()
+      if (!session?.token) {
+        return {
+          salons: [
+            { id: '1', name: 'Ana Salon', tableCount: 20, capacity: 80 },
+            { id: '2', name: 'Teras', tableCount: 12, capacity: 40 },
+          ],
+          totalTables: 32,
+          source: 'mock' as const,
+        }
+      }
 
-  const res = await bossFetch<unknown>('/api/salons')
-  if (!res.ok || res.data == null) {
-    return { salons: [], totalTables: 0, source: 'mock' }
-  }
+      const res = await bossFetch<unknown>('/api/salons')
+      if (!res.ok || res.data == null) {
+        return { salons: [], totalTables: 0, source: 'mock' as const }
+      }
 
-  const raw = Array.isArray(res.data)
-    ? res.data
-    : asList(asMap(res.data)?.items ?? asMap(res.data)?.salons ?? asMap(res.data)?.rows)
+      const raw = Array.isArray(res.data)
+        ? res.data
+        : asList(asMap(res.data)?.items ?? asMap(res.data)?.salons ?? asMap(res.data)?.rows)
 
-  const salons: SalonRow[] = raw.map((r, i) => {
-    const row = asMap(r) ?? {}
-    const tables = asList(row.tables ?? row.tableList)
-    const tableCount = num(row.tableCount ?? row.tablesCount ?? tables.length)
-    return {
-      id: str(row.id ?? row.uuid ?? i),
-      name: str(row.nameTr ?? row.name, `Salon ${i + 1}`),
-      tableCount,
-      capacity: num(row.capacity ?? row.guestCapacity) || undefined,
-    }
-  })
+      const salons: SalonRow[] = raw.map((r, i) => {
+        const row = asMap(r) ?? {}
+        const tables = asList(row.tables ?? row.tableList)
+        const tableCount = num(row.tableCount ?? row.tablesCount ?? tables.length)
+        return {
+          id: str(row.id ?? row.uuid ?? i),
+          name: str(row.nameTr ?? row.name, `Salon ${i + 1}`),
+          tableCount,
+          capacity: num(row.capacity ?? row.guestCapacity) || undefined,
+        }
+      })
 
-  const totalTables = salons.reduce((a, s) => a + s.tableCount, 0)
-  return { salons, totalTables, source: 'api' }
+      const totalTables = salons.reduce((a, s) => a + s.tableCount, 0)
+      return { salons, totalTables, source: 'api' as const }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
+  )
 }
 
 export type ProductionAreaRow = {
@@ -736,33 +831,40 @@ export type SistemUretimData = {
 }
 
 export async function loadUretimPage(): Promise<SistemUretimData> {
-  const session = readNativeSession()
-  const mock: ProductionAreaRow[] = [
-    { id: '1', name: 'Mutfak', active: true },
-    { id: '2', name: 'Bar', active: true },
-    { id: '3', name: 'Tatlı', active: false },
-  ]
-  if (!session?.token) return { areas: mock, source: 'mock' }
+  return withBossCache(
+    'page:uretim',
+    BOSS_TTL.definitions,
+    async () => {
+      const session = readNativeSession()
+      const mock: ProductionAreaRow[] = [
+        { id: '1', name: 'Mutfak', active: true },
+        { id: '2', name: 'Bar', active: true },
+        { id: '3', name: 'Tatlı', active: false },
+      ]
+      if (!session?.token) return { areas: mock, source: 'mock' as const }
 
-  const res = await bossFetch<unknown>('/api/definitions/production-areas')
-  if (!res.ok || res.data == null) return { areas: mock, source: 'mock' }
+      const res = await bossFetch<unknown>('/api/definitions/production-areas')
+      if (!res.ok || res.data == null) return { areas: mock, source: 'mock' as const }
 
-  const raw = Array.isArray(res.data)
-    ? res.data
-    : asList(asMap(res.data)?.items ?? asMap(res.data)?.areas ?? asMap(res.data)?.rows)
+      const raw = Array.isArray(res.data)
+        ? res.data
+        : asList(asMap(res.data)?.items ?? asMap(res.data)?.areas ?? asMap(res.data)?.rows)
 
-  if (!raw.length) return { areas: mock, source: 'mock' }
+      if (!raw.length) return { areas: mock, source: 'mock' as const }
 
-  const areas = raw.map((r, i) => {
-    const row = asMap(r) ?? {}
-    return {
-      id: str(row.id ?? row.uuid ?? i),
-      name: str(row.nameTr ?? row.name, `Alan ${i + 1}`),
-      active: row.active !== false && row.isActive !== false,
-    }
-  })
+      const areas = raw.map((r, i) => {
+        const row = asMap(r) ?? {}
+        return {
+          id: str(row.id ?? row.uuid ?? i),
+          name: str(row.nameTr ?? row.name, `Alan ${i + 1}`),
+          active: row.active !== false && row.isActive !== false,
+        }
+      })
 
-  return { areas, source: 'api' }
+      return { areas, source: 'api' as const }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
+  )
 }
 
 export type UzaktanPageData = {
@@ -817,37 +919,47 @@ export type SistemHubData = {
 }
 
 export async function loadSistemHub(): Promise<SistemHubData> {
-  const [kanallar, odeme, salon, uretim] = await Promise.all([
-    loadKanallarPage(),
-    loadOdemePage(),
-    loadSalonPage(),
-    loadUretimPage(),
-  ])
+  return withBossCache(
+    CACHE_KEY_SISTEM_HUB,
+    BOSS_TTL.definitions,
+    async () => {
+      const [kanallar, odeme, salon, uretim] = await Promise.all([
+        loadKanallarPage(),
+        loadOdemePage(),
+        loadSalonPage(),
+        loadUretimPage(),
+      ])
 
-  const cards = SISTEM_CARDS.map((c) => {
-    if (c.id === 'kanallar') {
-      const n = kanallar.channels.filter((x) => x.enabled).length
-      return { ...c, badge: `${n} aktif` }
-    }
-    if (c.id === 'odeme') {
-      const n = odeme.payments.filter((x) => x.active).length
-      return { ...c, badge: `${n} aktif` }
-    }
-    if (c.id === 'salon') {
-      return { ...c, badge: `${salon.totalTables} masa` }
-    }
-    if (c.id === 'uretim') {
-      return { ...c, badge: `${uretim.areas.length} birim` }
-    }
-    return c
-  })
+      const cards = SISTEM_CARDS.map((c) => {
+        if (c.id === 'kanallar') {
+          const n = kanallar.channels.filter((x) => x.enabled).length
+          return { ...c, badge: `${n} aktif` }
+        }
+        if (c.id === 'odeme') {
+          const n = odeme.payments.filter((x) => x.active).length
+          return { ...c, badge: `${n} aktif` }
+        }
+        if (c.id === 'salon') {
+          return { ...c, badge: `${salon.totalTables} masa` }
+        }
+        if (c.id === 'uretim') {
+          return { ...c, badge: `${uretim.areas.length} birim` }
+        }
+        return c
+      })
 
-  const source =
-    kanallar.source === 'api' || odeme.source === 'api' || salon.source === 'api' || uretim.source === 'api'
-      ? 'api'
-      : 'mock'
+      const source =
+        kanallar.source === 'api' ||
+        odeme.source === 'api' ||
+        salon.source === 'api' ||
+        uretim.source === 'api'
+          ? ('api' as const)
+          : ('mock' as const)
 
-  return { cards, source }
+      return { cards, source }
+    },
+    { persist: true, isCacheable: (d) => d.source === 'api' },
+  )
 }
 
 // ── Cariler ──────────────────────────────────────────────────────────────────
@@ -1009,6 +1121,12 @@ export async function postCashMovement(input: {
     method: 'POST',
     body: JSON.stringify(body),
   })
+  if (res.ok) {
+    invalidateBossCache('api:accounting')
+    invalidateBossCache('fn:loadKasaDashboard')
+    invalidateBossCache('fn:loadFinansDashboard')
+    invalidateBossCache('fn:loadAccountsPage')
+  }
   return { ok: res.ok, error: res.error }
 }
 
@@ -1025,10 +1143,7 @@ export async function loadRaporlarPage(): Promise<RaporlarPageData> {
     return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
   }
 
-  const day = todayYmd()
-  const sales = await bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-    query: { from: day, to: day, part: 'full' },
-  })
+  const sales = await fetchSalesAnalysisTodayFull()
 
   if (!sales.ok || !sales.data) {
     return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
@@ -1128,14 +1243,14 @@ export async function loadZReportsPage(): Promise<ZPageData> {
   })
 
   if (!zTpl) {
-    // Fallback: build a synthetic today row from sales-analysis
+    // Fallback: paylaşılan sales-analysis L1 cache
     const day = todayYmd()
-    const sales = await bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-      query: { from: day, to: day, part: 'full' },
-    })
+    const sales = await fetchSalesAnalysisTodayFull()
     if (!sales.ok || !sales.data) return { reports: Z_REPORTS, source: 'mock' }
     const summary = asMap(sales.data.summary) ?? sales.data
-    const total = num(summary.totalRevenue ?? summary.revenue)
+    const total = num(
+      summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue ?? summary.revenue,
+    )
     const payments = asMap(sales.data.payments) ?? {}
     const nakit = num(payments.Nakit ?? payments.cash ?? payments.nakit)
     const kart = num(payments.Kart ?? payments.card ?? payments.kredi)

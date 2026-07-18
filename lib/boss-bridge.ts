@@ -32,21 +32,27 @@ export type BossToNativeMessage =
   | { type: 'navigate'; path: string }
   | { type: 'ready' }
   | { type: 'appearance'; fontScale: string; themeAccent: string }
+  | { type: 'cacheClear' }
 
 type TranscriptHandler = (text: string) => void
 type SessionHandler = (session: BossNativeSession) => void
+type CacheClearHandler = () => void
 
 const transcriptHandlers = new Set<TranscriptHandler>()
 const sessionHandlers = new Set<SessionHandler>()
+const cacheClearHandlers = new Set<CacheClearHandler>()
 
 declare global {
   interface Window {
     __RESTROID_BOSS__?: BossNativeSession
     RestroidBoss?: { postMessage: (msg: string) => void }
+    /** Flutter kabuğu — soft SPA navigasyon (router.push); tam reload yok */
+    __RESTROID_BOSS_NAVIGATE__?: (path: string) => boolean
     /** @deprecated internal fan-out — use onNativeTranscript */
     __RESTROID_BOSS_ON_TRANSCRIPT__?: TranscriptHandler
     /** @deprecated internal fan-out — use onNativeSession */
     __RESTROID_BOSS_ON_SESSION__?: SessionHandler
+    __RESTROID_BOSS_ON_CACHE_CLEAR__?: CacheClearHandler
   }
 }
 
@@ -66,6 +72,15 @@ function installGlobalFanout() {
     for (const h of sessionHandlers) {
       try {
         h(session)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  window.__RESTROID_BOSS_ON_CACHE_CLEAR__ = () => {
+    for (const h of cacheClearHandlers) {
+      try {
+        h()
       } catch {
         /* ignore */
       }
@@ -115,6 +130,20 @@ export function onNativeSession(handler: SessionHandler): () => void {
   return () => {
     sessionHandlers.delete(handler)
   }
+}
+
+export function onNativeCacheClear(handler: CacheClearHandler): () => void {
+  if (typeof window === 'undefined') return () => {}
+  installGlobalFanout()
+  cacheClearHandlers.add(handler)
+  return () => {
+    cacheClearHandlers.delete(handler)
+  }
+}
+
+export function dispatchNativeCacheClear(): void {
+  installGlobalFanout()
+  window.__RESTROID_BOSS_ON_CACHE_CLEAR__?.()
 }
 
 export function dispatchNativeTranscript(text: string): void {

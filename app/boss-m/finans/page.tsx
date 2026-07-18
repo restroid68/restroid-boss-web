@@ -18,7 +18,10 @@ const FINANS_FALLBACK: FinansDashboardData = {
 }
 
 export default function BossMFinans() {
-  const { data, loading } = useBossLoad(loadFinansDashboard, FINANS_FALLBACK)
+  const { data, loading } = useBossLoad(loadFinansDashboard, FINANS_FALLBACK, {
+    cacheKey: 'page:finans',
+    ttlMs: 45_000,
+  })
 
   if (loading) {
     return (

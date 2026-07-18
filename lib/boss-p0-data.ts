@@ -19,7 +19,13 @@ import {
   type Account,
   type LedgerEntry,
 } from '@/lib/boss-mock'
-import { bossFetch, formatMoneyTR, todayYmd } from '@/lib/boss-api'
+import {
+  bossFetch,
+  fetchSalesAnalysisTodayFull,
+  formatMoneyTR,
+  todayYmd,
+} from '@/lib/boss-api'
+import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
 import { readNativeSession } from '@/lib/boss-bridge'
 import {
   labelOpAction,
@@ -154,20 +160,38 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   if (!session?.token) return fallback
 
   try {
-  const day = todayYmd()
   const [sales, onlinePending, qrPending, active, logs] = await Promise.all([
-    bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-      // Cloud route: fromDay / toDay (from/to yok sayılır)
-      query: { fromDay: day, toDay: day, part: 'full' },
-    }),
-    bossFetch<{ count?: number }>('/api/sales/online-orders/pending-count'),
-    bossFetch<{ count?: number }>('/api/sales/qr-menu-orders/pending-count'),
-    bossFetch<{ items?: unknown[]; orders?: unknown[]; count?: number }>(
-      '/api/sales/active-orders',
+    fetchSalesAnalysisTodayFull(),
+    withBossCache(
+      'api:online-pending-count',
+      BOSS_TTL.live,
+      () => bossFetch<{ count?: number }>('/api/sales/online-orders/pending-count'),
+      { isCacheable: (r) => r.ok },
     ),
-    bossFetch<{ items?: unknown[]; logs?: unknown[] }>('/api/operation-logs', {
-      query: { page: '1', pageSize: '8' },
-    }),
+    withBossCache(
+      'api:qr-pending-count',
+      BOSS_TTL.live,
+      () => bossFetch<{ count?: number }>('/api/sales/qr-menu-orders/pending-count'),
+      { isCacheable: (r) => r.ok },
+    ),
+    withBossCache(
+      'api:active-orders',
+      BOSS_TTL.live,
+      () =>
+        bossFetch<{ items?: unknown[]; orders?: unknown[]; count?: number }>(
+          '/api/sales/active-orders',
+        ),
+      { isCacheable: (r) => r.ok },
+    ),
+    withBossCache(
+      'api:operation-logs:8',
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<{ items?: unknown[]; logs?: unknown[] }>('/api/operation-logs', {
+          query: { page: '1', pageSize: '8' },
+        }),
+      { isCacheable: (r) => r.ok },
+    ),
   ])
 
   if (!sales.ok || !sales.data) return fallback
@@ -290,12 +314,16 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   try {
   const day = todayYmd()
   const [sales, tx] = await Promise.all([
-    bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-      query: { fromDay: day, toDay: day, part: 'full' },
-    }),
-    bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
-      '/api/accounting/transactions',
-      { query: { page: '1', pageSize: '20', from: day, to: day } },
+    fetchSalesAnalysisTodayFull(),
+    withBossCache(
+      'api:accounting-tx:today:20',
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
+          '/api/accounting/transactions',
+          { query: { page: '1', pageSize: '20', from: day, to: day } },
+        ),
+      { isCacheable: (r) => r.ok },
     ),
   ])
 
@@ -310,7 +338,8 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
 
   const slices: PaymentSlice[] = []
   const colors = ['#10b981', '#38bdf8', '#f59e0b', '#f43f5e', '#a78bfa']
-  const sumPay = pb.reduce((a, raw) => a + num(asMap(raw)?.amount), 0) || 1
+  const sumPay =
+    pb.reduce((a: number, raw) => a + num(asMap(raw)?.amount), 0) || 1
   pb.slice(0, 5).forEach((raw, i) => {
     const row = asMap(raw) ?? {}
     const amount = num(row.amount)
@@ -385,9 +414,14 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   if (!session?.token) return fallback
 
   try {
-  const logs = await bossFetch<{ items?: unknown[]; logs?: unknown[] }>(
-    '/api/operation-logs',
-    { query: { page: '1', pageSize: '40' } },
+  const logs = await withBossCache(
+    'api:operation-logs:40',
+    BOSS_TTL.kpi,
+    () =>
+      bossFetch<{ items?: unknown[]; logs?: unknown[] }>('/api/operation-logs', {
+        query: { page: '1', pageSize: '40' },
+      }),
+    { isCacheable: (r) => r.ok },
   )
   if (!logs.ok) return fallback
 
@@ -452,11 +486,23 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   if (!session?.token) return fallback
 
   try {
+  const day = todayYmd()
   const [meta, tx] = await Promise.all([
-    bossFetch<Record<string, unknown>>('/api/accounting/meta'),
-    bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
-      '/api/accounting/transactions',
-      { query: { page: '1', pageSize: '30', from: todayYmd(), to: todayYmd() } },
+    withBossCache(
+      'api:accounting-meta',
+      BOSS_TTL.accounting,
+      () => bossFetch<Record<string, unknown>>('/api/accounting/meta'),
+      { persist: true, isCacheable: (r) => r.ok },
+    ),
+    withBossCache(
+      'api:accounting-tx:today:30',
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
+          '/api/accounting/transactions',
+          { query: { page: '1', pageSize: '30', from: day, to: day } },
+        ),
+      { isCacheable: (r) => r.ok },
     ),
   ])
 

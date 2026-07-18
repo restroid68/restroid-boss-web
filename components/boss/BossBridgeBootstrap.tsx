@@ -1,12 +1,16 @@
 'use client'
 
 import { useEffect } from 'react'
-import { notifyNativeReady } from '@/lib/boss-bridge'
+import { notifyNativeReady, onNativeCacheClear } from '@/lib/boss-bridge'
+import { clearBossPageCache } from '@/lib/boss-page-cache'
 
-/** Mount once under boss-m — tells Flutter WebView the SPA is ready for session inject. */
+/** Mount once under boss-m — Flutter ready + cache clear köprüsü. */
 export default function BossBridgeBootstrap() {
   useEffect(() => {
     notifyNativeReady()
+    return onNativeCacheClear(() => {
+      clearBossPageCache(true)
+    })
   }, [])
   return null
 }

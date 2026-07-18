@@ -1,5 +1,6 @@
 import BossAppearanceRoot from '@/components/boss/BossAppearanceRoot'
 import BossBridgeBootstrap from '@/components/boss/BossBridgeBootstrap'
+import BossShellNav from '@/components/boss/BossShellNav'
 
 /**
  * Flutter alt nav ~78px + gesture bar. Scroll alanı buna göre kısaltılır;
@@ -27,6 +28,7 @@ export default function BossMLayout({
 
       <BossAppearanceRoot />
       <BossBridgeBootstrap />
+      <BossShellNav />
       <div
         className={`relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y ${NATIVE_BOTTOM_CLEARANCE}`}
       >

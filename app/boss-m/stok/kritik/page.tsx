@@ -188,12 +188,16 @@ function KritikPageInner() {
   const searchParams = useSearchParams()
   const preselectedId = searchParams.get('id')
 
-  const { data, loading } = useBossLoad(loadStokHub, {
-    warehouses: STOK_WAREHOUSES,
-    items: STOK_ITEMS,
-    kpi: { toplamDeger: '—', kritikAdet: 0, bugunFireTutar: '—', acikSayim: 0 },
-    source: 'mock',
-  })
+  const { data, loading } = useBossLoad(
+    loadStokHub,
+    {
+      warehouses: STOK_WAREHOUSES,
+      items: STOK_ITEMS,
+      kpi: { toplamDeger: '—', kritikAdet: 0, bugunFireTutar: '—', acikSayim: 0 },
+      source: 'mock',
+    },
+    { cacheKey: 'page:stok-shell', ttlMs: 45_000 },
+  )
 
   const nonNormalItems = data.items.filter((i) => i.status !== 'normal')
 

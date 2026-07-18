@@ -35,10 +35,14 @@ const ACCENT_CYCLE = [
 ]
 
 export default function BossMSistemPage() {
-  const { data, loading } = useBossLoad(loadSistemHub, {
-    cards: SISTEM_CARDS,
-    source: 'mock',
-  })
+  const { data, loading } = useBossLoad(
+    loadSistemHub,
+    {
+      cards: SISTEM_CARDS,
+      source: 'mock',
+    },
+    { cacheKey: 'page:sistem-shell', ttlMs: 600_000, persist: true },
+  )
 
   return (
     <main className="flex flex-col gap-0 pb-4">

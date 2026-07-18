@@ -166,12 +166,16 @@ function QuickNavCard({
 const ALL_WAREHOUSES = 'Tümü'
 
 export default function BossMStokPage() {
-  const { data, loading } = useBossLoad(loadStokHub, {
-    warehouses: STOK_WAREHOUSES,
-    items: STOK_ITEMS,
-    kpi: STOK_KPI,
-    source: 'mock',
-  })
+  const { data, loading } = useBossLoad(
+    loadStokHub,
+    {
+      warehouses: STOK_WAREHOUSES,
+      items: STOK_ITEMS,
+      kpi: STOK_KPI,
+      source: 'mock',
+    },
+    { cacheKey: 'page:stok-shell', ttlMs: 45_000 },
+  )
   const [warehouse, setWarehouse] = useState(ALL_WAREHOUSES)
 
   const warehouseChips = [ALL_WAREHOUSES, ...data.warehouses.map((w) => w.name)]
