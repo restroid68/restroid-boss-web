@@ -1,9 +1,4 @@
 /** @type {import('next').NextConfig} */
-const apiBase = (process.env.NEXT_PUBLIC_BOSS_API_BASE || 'https://cloud.restroid.com').replace(
-  /\/+$/,
-  '',
-)
-
 const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
@@ -11,14 +6,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/panel-api/:path*',
-        destination: `${apiBase}/:path*`,
-      },
-    ]
-  },
+  // /panel-api proxy → middleware.ts (Canlı / Test cookie)
 }
 
 export default nextConfig
