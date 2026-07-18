@@ -30,6 +30,8 @@ export type BossToNativeMessage =
   | { type: 'logout' }
   | { type: 'openExternal'; url: string }
   | { type: 'navigate'; path: string }
+  /** SPA soft path sync → Flutter sekme / geri durumu */
+  | { type: 'path'; path: string }
   | { type: 'ready' }
   | { type: 'appearance'; fontScale: string; themeAccent: string }
   | { type: 'cacheClear' }

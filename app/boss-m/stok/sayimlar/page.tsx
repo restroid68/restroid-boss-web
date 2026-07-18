@@ -112,7 +112,7 @@ export default function BossMStokSayimlarPage() {
   const kapaliCount = data.sayimlar.filter((s) => s.status === 'Kapalı').length
 
   return (
-    <main className="flex flex-col h-svh bg-background overflow-hidden">
+    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
       <BossMPageHeader
         title="Sayımlar"
         showBack

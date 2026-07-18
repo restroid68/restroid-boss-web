@@ -25,7 +25,7 @@ export default function BossMFinans() {
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 pb-4 pt-5">
+      <main className="flex flex-col gap-4 bg-transparent pb-4 pt-5">
         <BossMPageHeader title="Finans" />
         <BossMSkeletonCard />
         <BossMSkeletonList rows={4} />
@@ -34,7 +34,7 @@ export default function BossMFinans() {
   }
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
+    <main className="flex flex-col gap-4 bg-transparent pb-4">
       <BossMPageHeader
         title="Finans"
         trailing={

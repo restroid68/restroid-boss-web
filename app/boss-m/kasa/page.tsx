@@ -51,7 +51,7 @@ export default function BossMCashPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 pb-4">
+      <main className="flex flex-col gap-4 bg-transparent pb-4">
         <BossMPageHeader title="Kasa & Banka" />
         <BossMSkeletonList rows={4} />
       </main>
@@ -61,7 +61,7 @@ export default function BossMCashPage() {
   const account = accounts.find((a) => a.id === selectedId) ?? accounts[0]
   if (!account) {
     return (
-      <main className="flex flex-col gap-4 pb-4">
+      <main className="flex flex-col gap-4 bg-transparent pb-4">
         <BossMPageHeader title="Kasa & Banka" />
         <BossMEmptyState
           icon={Inbox}
@@ -74,7 +74,7 @@ export default function BossMCashPage() {
   const Icon = accountIcons[account.type]
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
+    <main className="flex flex-col gap-4 bg-transparent pb-4">
       <BossMPageHeader
         title="Kasa & Banka"
         trailing={
@@ -127,8 +127,8 @@ export default function BossMCashPage() {
           return (
             <button
               key={a.key}
-              onClick={() => router.push('/boss-m/kasa/hareket')}
-              className="flex flex-col items-center gap-1.5 py-3 bg-card border border-border rounded-xl active:scale-[0.96] transition-transform"
+              onClick={() => router.push(`/boss-m/kasa/hareket?type=${a.key}`)}
+              className="flex flex-col items-center gap-1.5 py-3 bg-card/90 border border-border rounded-xl active:scale-[0.96] transition-transform"
             >
               <div className={cn('flex items-center justify-center w-9 h-9 rounded-lg', a.color)}>
                 <AIcon size={16} strokeWidth={1.8} />

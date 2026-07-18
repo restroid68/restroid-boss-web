@@ -8,49 +8,31 @@ import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { MENU_ITEMS } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadCatalogPage, patchProductStockStatus } from '@/lib/boss-page-data'
+import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import { cn } from '@/lib/utils'
 
 type CatalogMenuItem = (typeof MENU_ITEMS)[number] & { sku?: string }
 
 function BossMToggleRow({
   label,
-  description,
   checked,
   onChange,
   danger,
 }: {
   label: string
-  description: string
+  description?: string
   checked: boolean
   onChange: (v: boolean) => void
   danger?: boolean
 }) {
   return (
-    <div className="flex items-center gap-4 py-4 px-4">
-      <div className="flex-1 min-w-0">
+    <div className="flex items-center gap-4 px-4 py-4">
+      <div className="min-w-0 flex-1">
         <p className={cn('text-sm font-medium', danger && checked ? 'text-danger' : 'text-foreground')}>
           {label}
         </p>
-        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
       </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={cn(
-          'relative shrink-0 w-12 h-7 rounded-full transition-colors duration-200',
-          checked
-            ? danger ? 'bg-danger' : 'bg-primary'
-            : 'bg-surface-3'
-        )}
-      >
-        <span
-          className={cn(
-            'absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200',
-            checked ? 'translate-x-6' : 'translate-x-1'
-          )}
-        />
-      </button>
+      <BossMSwitch checked={checked} onChange={onChange} danger={danger} aria-label={label} />
     </div>
   )
 }
@@ -88,12 +70,12 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
 
   if (loading) {
     return (
-      <main className="flex flex-col h-screen bg-background">
+      <main className="flex h-screen flex-col bg-transparent">
         <BossMPageHeader title="Ürün" showBack />
-        <div className="flex-1 px-4 py-4 space-y-4 animate-pulse">
-          <div className="h-8 w-24 bg-surface-2 rounded-full" />
-          <div className="h-28 bg-surface-2 rounded-2xl" />
-          <div className="h-32 bg-surface-2 rounded-2xl" />
+        <div className="flex-1 space-y-4 px-4 py-4 animate-pulse">
+          <div className="h-8 w-24 rounded-full bg-surface-2" />
+          <div className="h-28 rounded-2xl bg-surface-2" />
+          <div className="h-32 rounded-2xl bg-surface-2" />
         </div>
       </main>
     )
@@ -101,9 +83,9 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
 
   if (!base) {
     return (
-      <main className="flex flex-col h-screen bg-background">
+      <main className="flex h-screen flex-col bg-transparent">
         <BossMPageHeader title="Ürün" showBack />
-        <div className="flex-1 flex items-center justify-center px-4">
+        <div className="flex flex-1 items-center justify-center px-4">
           <BossMEmptyState icon={Tag} title="Ürün bulunamadı" description="Bu ürün mevcut değil." />
         </div>
       </main>
@@ -128,32 +110,37 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
   const valid    = !isNaN(rawPrice) && rawPrice > 0
 
   return (
-    <main className="flex flex-col h-screen bg-background">
+    <main className="flex h-screen flex-col bg-transparent">
       <BossMPageHeader title={base.name} showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none pb-28">
-        <div className="px-4 pt-2 pb-4">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-2 border border-border text-xs text-muted-foreground">
+        <div className="px-4 pb-4 pt-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 text-xs text-muted-foreground">
             <Tag size={10} />
             {base.category}
           </span>
         </div>
 
-        <section className="px-4 mb-3">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+        <section className="mb-3 px-4">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             Fiyat
           </p>
-          <div className="bg-card border border-border rounded-2xl px-4 py-3.5">
-            <label className="block text-xs text-muted-foreground mb-2">Satış fiyatı (₺)</label>
-            <div className="flex items-center gap-2 bg-surface-2 border border-border rounded-xl px-4 h-12">
+          <div className="rounded-2xl border border-border bg-card/90 px-4 py-3.5">
+            <label className="mb-2 block text-xs text-muted-foreground">Satış fiyatı</label>
+            <div className="flex h-12 items-center gap-2 rounded-xl border border-border bg-surface-2 px-4">
               <span className="text-lg font-bold text-muted-foreground">₺</span>
               <input
-                type="number"
-                inputMode="numeric"
+                type="text"
+                inputMode="decimal"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+                onFocus={(e) => {
+                  requestAnimationFrame(() => {
+                    e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })
+                  })
+                }}
                 placeholder="0"
-                className="flex-1 bg-transparent text-2xl font-bold text-foreground tabular-nums outline-none placeholder:text-muted-foreground/30"
+                className="flex-1 bg-transparent text-right text-2xl font-bold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/30"
               />
             </div>
           </div>

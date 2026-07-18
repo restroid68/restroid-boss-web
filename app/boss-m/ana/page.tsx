@@ -34,7 +34,7 @@ export default function BossMDashboard() {
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 pb-4 pt-5">
+      <main className="flex flex-col gap-4 bg-transparent pb-4 pt-5">
         <BossMSkeletonKpiRow />
         <BossMSkeletonList rows={4} />
       </main>
@@ -46,7 +46,7 @@ export default function BossMDashboard() {
   const nativeShell = Boolean(session?.token)
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
+    <main className="flex flex-col gap-4 bg-transparent pb-4">
       <header className="px-4 pt-3 pb-1">
         {nativeShell ? (
           <span className="text-xs text-muted-foreground capitalize">

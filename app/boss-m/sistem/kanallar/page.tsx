@@ -7,38 +7,8 @@ import { SERVICE_CHANNELS } from '@/lib/boss-mock'
 import type { ServiceChannel } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadKanallarPage, patchServiceChannelEnabled } from '@/lib/boss-page-data'
+import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import { cn } from '@/lib/utils'
-
-// ── Toggle ─────────────────────────────────────────────────────────────────────
-
-function BossMToggle({
-  enabled,
-  onChange,
-  accent = 'bg-primary',
-}: {
-  enabled: boolean
-  onChange: (v: boolean) => void
-  accent?: string
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className={cn(
-        'relative inline-flex w-12 h-7 rounded-full transition-colors shrink-0',
-        enabled ? accent : 'bg-surface-3'
-      )}
-    >
-      <span
-        className={cn(
-          'absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-sm transition-transform',
-          enabled && 'translate-x-5'
-        )}
-      />
-    </button>
-  )
-}
 
 // ── Channel row ────────────────────────────────────────────────────────────────
 
@@ -69,11 +39,10 @@ function ChannelRow({
         </p>
       </div>
 
-      {/* Toggle */}
-      <BossMToggle
-        enabled={channel.enabled}
+      <BossMSwitch
+        checked={channel.enabled}
         onChange={(v) => onToggle(channel.id, v)}
-        accent={channel.enabled ? 'bg-primary' : 'bg-surface-3'}
+        aria-label={channel.label}
       />
     </div>
   )

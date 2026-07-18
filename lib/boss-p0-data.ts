@@ -23,6 +23,7 @@ import {
   bossFetch,
   fetchSalesAnalysisTodayFull,
   formatMoneyTR,
+  parseMoneyTR,
   todayYmd,
 } from '@/lib/boss-api'
 import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
@@ -64,8 +65,7 @@ export type KasaDashboardData = {
 }
 
 function num(v: unknown): number {
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : 0
+  return parseMoneyTR(v)
 }
 
 function asMap(v: unknown): Record<string, unknown> | null {
@@ -520,11 +520,12 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
       : typeRaw.includes('pos') || typeRaw.includes('card')
         ? 'pos'
         : 'cash'
+    const bal = num(row.balance ?? row.currentBalance ?? row.computed_balance)
     return {
       id: String(row.id ?? i),
       name: String(row.name ?? row.label ?? `Hesap ${i + 1}`),
       type,
-      balance: formatMoneyTR(num(row.balance ?? row.currentBalance)),
+      balance: formatMoneyTR(bal, bal % 1 === 0 ? 0 : 2),
       currency: '₺',
     }
   })
@@ -550,13 +551,14 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
     }
   })
 
+  // Oturum varken örnek (mock) hesap/hareket gösterme — boş liste doğru durum
   return {
-    accounts: accounts.length ? accounts : ACCOUNTS,
-    ledger: ledger.length ? ledger : LEDGER_ENTRIES,
+    accounts,
+    ledger: meta.ok || tx.ok ? ledger : [],
     source: meta.ok || tx.ok ? 'api' : 'mock',
   }
   } catch {
-    return fallback
+    return { accounts: [], ledger: [], source: 'mock' }
   }
 }
 
@@ -645,6 +647,7 @@ export async function askBossAiApi(
     error?: string
   }>('/api/boss/ai/ask', {
     method: 'POST',
+    timeoutMs: 90_000,
     body: JSON.stringify({
       question,
       days: opts?.days ?? 7,
@@ -683,6 +686,7 @@ export async function confirmBossAiProductApi(
     '/api/boss/ai/confirm-product',
     {
       method: 'POST',
+      timeoutMs: 60_000,
       body: JSON.stringify({ draft }),
     },
   )

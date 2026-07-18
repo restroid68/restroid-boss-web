@@ -44,9 +44,9 @@ export default function BossMTemaPage() {
             <Palette size={20} strokeWidth={1.7} />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Kart ve vurgu</p>
+            <p className="text-sm font-semibold text-foreground">Uygulama rengi</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Sol menü mavisi varsayılandır
+              Kartlar, üst çubuk ve alt menü
             </p>
           </div>
         </div>

@@ -175,7 +175,7 @@ export default function BossMStokTransferlerPage() {
   }
 
   return (
-    <main className="flex flex-col h-svh bg-background overflow-hidden">
+    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
       <BossMPageHeader title="Transferler" showBack />
 
       <div className="flex gap-2 px-4 pb-4 overflow-x-auto">

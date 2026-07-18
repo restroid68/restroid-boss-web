@@ -44,7 +44,6 @@ import {
 import {
   bossFetch,
   fetchSalesAnalysisTodayFull,
-  formatMoneyTR,
   todayYmd,
 } from '@/lib/boss-api'
 import { readNativeSession } from '@/lib/boss-bridge'
@@ -55,10 +54,10 @@ import {
   invalidateBossCache,
   withBossCache,
 } from '@/lib/boss-page-cache'
+import { formatMoneyTR, parseMoneyTR } from '@/lib/boss-money'
 
 function num(v: unknown): number {
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : 0
+  return parseMoneyTR(v)
 }
 
 function asMap(v: unknown): Record<string, unknown> | null {
@@ -100,9 +99,38 @@ function fmtDateTime(iso: unknown): string {
 
 type CatalogRow = Record<string, unknown>
 
+function catalogRowPrice(row: CatalogRow): number {
+  const direct = parseMoneyTR(row.price ?? row.salePrice ?? row.unitPrice)
+  if (direct > 0) return direct
+  const sp = row.servicePrices
+  if (sp && typeof sp === 'object' && !Array.isArray(sp)) {
+    const map = sp as Record<string, unknown>
+    for (const key of ['dinein', 'dine_in', 'takeaway', 'delivery', 'self', 'room', 'online', 'qr_menu']) {
+      const block = map[key]
+      if (block && typeof block === 'object') {
+        const sale = parseMoneyTR((block as { sale?: unknown }).sale)
+        if (sale > 0) return sale
+      }
+    }
+    for (const block of Object.values(map)) {
+      if (block && typeof block === 'object') {
+        const sale = parseMoneyTR((block as { sale?: unknown }).sale)
+        if (sale > 0) return sale
+      }
+    }
+  }
+  const prices = row.prices
+  if (prices && typeof prices === 'object' && !Array.isArray(prices)) {
+    const p = prices as Record<string, unknown>
+    const fromMap = parseMoneyTR(p.dinein ?? p.dine_in ?? p.default ?? Object.values(p)[0])
+    if (fromMap > 0) return fromMap
+  }
+  return parseMoneyTR(row.singleOriginalPrice)
+}
+
 function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: string } {
   const name = str(row.nameTr ?? row.name ?? row.title, 'Ürün')
-  const price = num(row.price ?? row.salePrice ?? row.unitPrice)
+  const price = catalogRowPrice(row)
   const stockStatus = row.stockStatus
   const depleted =
     stockStatus === false ||
@@ -119,7 +147,7 @@ function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: 
     id: str(row.uuid ?? row.id),
     name,
     category: str(row.categoryName ?? row.category ?? 'Diğer', 'Diğer'),
-    price: Math.round(price),
+    price: Math.round(price * 100) / 100,
     active,
     tukendi: depleted,
     stock: depleted ? 0 : null,
@@ -143,7 +171,7 @@ function toProduct(m: MenuItem & { sku: string }): Product {
     unit: 'adet',
     minStock,
     status,
-    price: `₺${formatMoneyTR(m.price)}`,
+    price: `₺${formatMoneyTR(m.price, m.price % 1 === 0 ? 0 : 2)}`,
   }
 }
 
@@ -1065,33 +1093,58 @@ export type AccountsPageData = {
   source: 'api' | 'mock'
 }
 
+function mapFinanceAccount(raw: unknown, i: number): Account {
+  const row = asMap(raw) ?? {}
+  const bal = parseMoneyTR(row.balance ?? row.currentBalance ?? row.computed_balance)
+  const kind = str(row.type ?? row.kind).toLowerCase()
+  let type: Account['type'] = 'cash'
+  if (kind.includes('bank')) type = 'bank'
+  else if (kind.includes('pos') || kind.includes('card')) type = 'pos'
+  return {
+    id: str(row.id ?? i),
+    name: str(row.name ?? row.title ?? row.label, `Hesap ${i + 1}`),
+    type,
+    balance: formatMoneyTR(bal, bal % 1 === 0 ? 0 : 2),
+    currency: '₺',
+  }
+}
+
 export async function loadAccountsPage(): Promise<AccountsPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { accounts: ACCOUNTS, source: 'mock' }
+  if (!session?.token) return { accounts: [], source: 'mock' }
 
-  const res = await bossFetch<{ items?: unknown[]; accounts?: unknown[] }>('/api/accounting/accounts')
-  if (!res.ok || !res.data) return { accounts: ACCOUNTS, source: 'mock' }
+  // GET /api/accounting/accounts yok — hesap listesi meta’da
+  const res = await bossFetch<{ accounts?: unknown[]; cashAccounts?: unknown[] }>(
+    '/api/accounting/meta',
+  )
+  if (!res.ok || !res.data) return { accounts: [], source: 'api' }
 
-  const raw = asList(res.data.items ?? res.data.accounts)
-  if (!raw.length) return { accounts: ACCOUNTS, source: 'mock' }
+  const raw = asList(res.data.accounts ?? res.data.cashAccounts)
+  const accounts = raw.map(mapFinanceAccount)
+  return { accounts, source: 'api' }
+}
 
-  const accounts: Account[] = raw.map((r, i) => {
-    const row = asMap(r) ?? {}
-    const bal = num(row.balance ?? row.currentBalance)
-    const kind = str(row.type ?? row.kind).toLowerCase()
-    let type: Account['type'] = 'cash'
-    if (kind.includes('bank')) type = 'bank'
-    else if (kind.includes('pos')) type = 'pos'
+export type ExpenseCategoryOption = {
+  id: string
+  name: string
+  subcategories: { id: string; name: string }[]
+}
+
+export async function loadExpenseCategories(): Promise<ExpenseCategoryOption[]> {
+  const res = await bossFetch<{ categories?: unknown[] }>('/api/accounting/meta')
+  if (!res.ok || !res.data) return []
+  return asList(res.data.categories).map((raw) => {
+    const row = asMap(raw) ?? {}
+    const subs = asList(row.subcategories).map((s) => {
+      const sm = asMap(s) ?? {}
+      return { id: str(sm.id), name: str(sm.name, 'Alt kategori') }
+    })
     return {
-      id: str(row.id ?? i),
-      name: str(row.name ?? row.title, `Hesap ${i + 1}`),
-      type,
-      balance: formatMoneyTR(bal),
-      currency: str(row.currency, 'TRY'),
+      id: str(row.id),
+      name: str(row.name, 'Kategori'),
+      subcategories: subs,
     }
   })
-
-  return { accounts, source: 'api' }
 }
 
 export async function postCashMovement(input: {
@@ -1100,6 +1153,10 @@ export async function postCashMovement(input: {
   amount: number
   note?: string
   targetAccountId?: string
+  expenseCategoryId?: string
+  expenseSubcategoryId?: string
+  expenseCategoryName?: string
+  expenseSubcategoryName?: string
 }): Promise<{ ok: boolean; error?: string }> {
   // cloud CreateBody: action (AccountingAction), description — not type/note
   let action = 'CASH_IN'
@@ -1116,6 +1173,14 @@ export async function postCashMovement(input: {
   if (action === 'TRANSFER_OUT') {
     body.targetAccountId = input.targetAccountId
   }
+  if (action === 'EXPENSE') {
+    if (input.expenseCategoryId) body.expenseCategoryId = input.expenseCategoryId
+    if (input.expenseSubcategoryId) body.expenseSubcategoryId = input.expenseSubcategoryId
+    if (input.expenseCategoryName) body.expenseCategoryName = input.expenseCategoryName
+    if (input.expenseSubcategoryName) {
+      body.expenseSubcategoryName = input.expenseSubcategoryName
+    }
+  }
 
   const res = await bossFetch('/api/accounting/transactions', {
     method: 'POST',
@@ -1126,6 +1191,8 @@ export async function postCashMovement(input: {
     invalidateBossCache('fn:loadKasaDashboard')
     invalidateBossCache('fn:loadFinansDashboard')
     invalidateBossCache('fn:loadAccountsPage')
+    invalidateBossCache('page:finans')
+    invalidateBossCache('page:kasa')
   }
   return { ok: res.ok, error: res.error }
 }

@@ -122,7 +122,7 @@ export default function BossMListanslarPage() {
   const missing  = data.list.filter((l) => l.status === 'yok').length
 
   return (
-    <main className="flex flex-col min-h-0 bg-background">
+    <main className="flex flex-col min-h-0 bg-transparent">
       <BossMPageHeader title="Lisanslar" showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">

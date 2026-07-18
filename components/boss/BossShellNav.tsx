@@ -29,6 +29,8 @@ export default function BossShellNav() {
       const target = raw.startsWith('/') ? raw.split('?')[0]! : `/${raw.split('?')[0]}`
       if (target === pathRef.current) return true
       try {
+        // Flutter goTab ile yarışmasın — hedefi hemen kilitle
+        pathRef.current = target
         router.push(raw.startsWith('/') ? raw : `/${raw}`)
         return true
       } catch {

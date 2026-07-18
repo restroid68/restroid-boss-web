@@ -30,9 +30,36 @@ function authHeaders(): HeadersInit {
   return headers
 }
 
+export type BossFetchInit = RequestInit & {
+  query?: Record<string, string | undefined>
+  /** Varsayılan 12s; AI / uzun işler için yükselt (ör. 90000). */
+  timeoutMs?: number
+}
+
+function defaultTimeoutMs(path: string, override?: number): number {
+  if (typeof override === 'number' && override > 0) return override
+  // LLM + tool/SQL — cloud maxDuration 60s; istemci biraz pay bırakır
+  if (path.includes('/boss/ai/')) return 90_000
+  return 12_000
+}
+
+function errorFromCatch(e: unknown): string {
+  if (e instanceof DOMException && e.name === 'AbortError') {
+    return 'İstek zaman aşımına uğradı. Tekrar dene.'
+  }
+  if (e instanceof Error) {
+    const m = e.message || ''
+    if (/abort/i.test(m) || /aborted/i.test(m)) {
+      return 'İstek zaman aşımına uğradı. Tekrar dene.'
+    }
+    return m
+  }
+  return 'Network error'
+}
+
 export async function bossFetch<T = unknown>(
   path: string,
-  init?: RequestInit & { query?: Record<string, string | undefined> },
+  init?: BossFetchInit,
 ): Promise<BossApiResult<T>> {
   const prefix = getBossApiPrefix()
   const normalized = path.startsWith('/') ? path : `/${path}`
@@ -46,11 +73,11 @@ export async function bossFetch<T = unknown>(
     }
   }
 
-  const { query: _q, ...fetchInit } = init ?? {}
+  const { query: _q, timeoutMs: timeoutOverride, ...fetchInit } = init ?? {}
   void _q
+  const timeoutMs = defaultTimeoutMs(normalized, timeoutOverride)
 
   try {
-    const timeoutMs = 12_000
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     if (fetchInit.signal) {
@@ -89,7 +116,7 @@ export async function bossFetch<T = unknown>(
       ok: false,
       status: 0,
       data: null,
-      error: e instanceof Error ? e.message : 'Network error',
+      error: errorFromCatch(e),
     }
   }
 }
@@ -116,9 +143,4 @@ export async function fetchSalesAnalysisTodayFull(): Promise<
   )
 }
 
-export function formatMoneyTR(n: number): string {
-  return new Intl.NumberFormat('tr-TR', {
-    maximumFractionDigits: 0,
-    minimumFractionDigits: 0,
-  }).format(Math.round(n))
-}
+export { formatMoneyTR, parseMoneyTR } from '@/lib/boss-money'

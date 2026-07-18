@@ -158,7 +158,7 @@ export default function BossMCarilerPage() {
   const totalBalance = rows.reduce((s, c) => s + c.balance, 0)
 
   return (
-    <main className="flex flex-col min-h-0 bg-background">
+    <main className="flex flex-col min-h-0 bg-transparent">
       {selected && <CariDetailPanel cari={selected} onClose={() => setSelected(null)} />}
 
       <BossMPageHeader title="Cariler" showBack />

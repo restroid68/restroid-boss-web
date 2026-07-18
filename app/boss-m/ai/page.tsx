@@ -288,13 +288,13 @@ export default function BossMaiPage() {
   }, [handleSend])
 
   return (
-    <div className="flex flex-col h-svh bg-background overflow-hidden">
+    <div className="flex h-svh flex-col overflow-hidden bg-transparent">
       <BossMPageHeader
         title="Restroid AI"
         showBack
         trailing={
-          <span className="flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-success/15 border border-success/25">
-            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+          <span className="flex h-7 items-center gap-1.5 rounded-full border border-success/25 bg-success/15 px-2.5">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
             <span className="text-[11px] font-medium text-success">Aktif</span>
           </span>
         }

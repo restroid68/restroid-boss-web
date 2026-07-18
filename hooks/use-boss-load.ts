@@ -109,7 +109,7 @@ export function useBossLoad<T>(
     if (readNativeSession()?.token) {
       safeRun()
     } else {
-      timer = setTimeout(() => safeRun(), 750)
+      timer = setTimeout(() => safeRun(), 180)
     }
 
     const off = onNativeSession((session) => {

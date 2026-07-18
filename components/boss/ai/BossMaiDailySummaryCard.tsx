@@ -1,79 +1,115 @@
 'use client'
 
-import { TrendingUp, TrendingDown, AlertTriangle, Star } from 'lucide-react'
+import { AlertTriangle, Star } from 'lucide-react'
+import { useBossLoad } from '@/hooks/use-boss-load'
+import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
+import { BOSS_TTL } from '@/lib/boss-page-cache'
+import { cn } from '@/lib/utils'
 
-// Hardcoded today's summary snapshot — in production this would come from the API
-const SUMMARY = {
-  ciro: '₺24.860',
-  target: '₺28.000',
-  progress: 89, // percent of daily target
-  costAnomaly: { label: 'Market alışverişi', amount: '₺430', delta: '+38%' },
-  topProduct: { name: 'Izgara Köfte', qty: 42, revenue: '₺2.940' },
+const EMPTY: AnaDashboardData = {
+  restaurantName: '',
+  branchLabel: '',
+  kpis: [],
+  channels: [],
+  alerts: [],
+  operasyonBadges: {},
+  source: 'mock',
+}
+
+function kpiValue(data: AnaDashboardData, labelPart: string): string {
+  const row = data.kpis.find((k) =>
+    k.label.toLowerCase().includes(labelPart.toLowerCase()),
+  )
+  if (!row) return '—'
+  const unit = row.unit === '₺' ? '₺' : ''
+  return `${unit}${row.value}`
 }
 
 export function BossMaiDailySummaryCard() {
+  const { data, loading } = useBossLoad(loadAnaDashboard, EMPTY, {
+    cacheKey: 'page:ana',
+    ttlMs: BOSS_TTL.kpi,
+  })
+
+  const today = new Intl.DateTimeFormat('tr-TR', {
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date())
+
+  const ciro = kpiValue(data, 'ciro')
+  const openAmt = kpiValue(data, 'açık')
+  const critical = data.alerts.find((a) => a.type === 'kritik') ?? data.alerts[0]
+  const topChannel = data.channels.find(
+    (c) => c.key !== 'masa' && c.key !== 'iptal' && c.key !== 'zayi' && c.value !== '0',
+  )
+
+  if (loading && data.source === 'mock' && !data.kpis.length) {
+    return (
+      <div className="mx-4 mb-2 h-40 animate-pulse rounded-2xl border border-border bg-card/80" />
+    )
+  }
+
+  const isMock = data.source === 'mock'
+
   return (
-    <div className="mx-4 mb-2 rounded-2xl border border-border bg-card overflow-hidden">
-      {/* Header strip */}
-      <div className="flex items-center gap-2 px-4 pt-3.5 pb-2.5 border-b border-border">
-        <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-primary/15">
-          {/* Sparkle icon via inline svg for the AI feel */}
+    <div className="mx-4 mb-2 overflow-hidden rounded-2xl border border-border bg-card/90">
+      <div className="flex items-center gap-2 border-b border-border px-4 pb-2.5 pt-3.5">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/15">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" className="text-primary">
-            <path d="M8 1v3M8 12v3M1 8h3M12 8h3M3.05 3.05l2.12 2.12M10.83 10.83l2.12 2.12M3.05 12.95l2.12-2.12M10.83 5.17l2.12-2.12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            <path
+              d="M8 1v3M8 12v3M1 8h3M12 8h3M3.05 3.05l2.12 2.12M10.83 10.83l2.12 2.12M3.05 12.95l2.12-2.12M10.83 5.17l2.12-2.12"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           </svg>
         </span>
         <span className="text-xs font-semibold text-foreground">Günlük Özet</span>
-        <span className="ml-auto text-[11px] text-muted-foreground">Bugün · 18 Tem</span>
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          Bugün · {today}
+          {isMock ? ' · örnek' : ''}
+        </span>
       </div>
 
-      {/* Ciro vs target */}
-      <div className="px-4 pt-3 pb-1">
-        <div className="flex items-end justify-between mb-1.5">
+      <div className="px-4 pb-1 pt-3">
+        <div className="mb-1.5 flex items-end justify-between">
           <div>
-            <p className="text-[11px] text-muted-foreground mb-0.5">Günlük Ciro</p>
-            <p className="text-xl font-bold text-foreground tracking-tight">{SUMMARY.ciro}</p>
+            <p className="mb-0.5 text-[11px] text-muted-foreground">Günlük Ciro</p>
+            <p className="text-xl font-bold tracking-tight text-foreground tabular-nums">
+              {ciro}
+            </p>
           </div>
           <div className="text-right">
-            <p className="text-[11px] text-muted-foreground mb-0.5">Hedef</p>
-            <p className="text-sm font-semibold text-muted-foreground">{SUMMARY.target}</p>
-          </div>
-        </div>
-        {/* Progress bar */}
-        <div className="h-1.5 rounded-full bg-surface-3 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary transition-all"
-            style={{ width: `${SUMMARY.progress}%` }}
-          />
-        </div>
-        <p className="text-[11px] text-muted-foreground mt-1">
-          Hedefe{' '}
-          <span className="text-warning font-medium">%{100 - SUMMARY.progress}</span>{' '}
-          kaldı
-        </p>
-      </div>
-
-      {/* Two metric pills */}
-      <div className="grid grid-cols-2 gap-2 px-4 py-3">
-        {/* Cost anomaly */}
-        <div className="flex items-start gap-2 bg-danger/8 border border-danger/20 rounded-xl px-3 py-2.5">
-          <AlertTriangle size={13} className="text-danger mt-0.5 shrink-0" />
-          <div className="min-w-0">
-            <p className="text-[10px] font-medium text-danger leading-tight">Maliyet Uyarısı</p>
-            <p className="text-xs font-semibold text-foreground mt-0.5 truncate">{SUMMARY.costAnomaly.label}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {SUMMARY.costAnomaly.amount}{' '}
-              <span className="text-danger">{SUMMARY.costAnomaly.delta}</span>
+            <p className="mb-0.5 text-[11px] text-muted-foreground">Açık hesap</p>
+            <p className="text-sm font-semibold tabular-nums text-muted-foreground">
+              {openAmt}
             </p>
           </div>
         </div>
-        {/* Top product */}
-        <div className="flex items-start gap-2 bg-success/8 border border-success/20 rounded-xl px-3 py-2.5">
-          <Star size={13} className="text-success mt-0.5 shrink-0" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 px-4 py-3">
+        <div className="flex items-start gap-2 rounded-xl border border-danger/20 bg-danger/8 px-3 py-2.5">
+          <AlertTriangle size={13} className="mt-0.5 shrink-0 text-danger" />
           <div className="min-w-0">
-            <p className="text-[10px] font-medium text-success leading-tight">En Çok Satan</p>
-            <p className="text-xs font-semibold text-foreground mt-0.5 truncate">{SUMMARY.topProduct.name}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {SUMMARY.topProduct.qty} adet · {SUMMARY.topProduct.revenue}
+            <p className="text-[10px] font-medium leading-tight text-danger">Dikkat</p>
+            <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
+              {critical?.message ?? 'Uyarı yok'}
+            </p>
+            <p className={cn('truncate text-[11px] text-muted-foreground')}>
+              {critical?.detail ?? 'Bugün kritik kayıt yok'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2 rounded-xl border border-success/20 bg-success/8 px-3 py-2.5">
+          <Star size={13} className="mt-0.5 shrink-0 text-success" />
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium leading-tight text-success">Kanal</p>
+            <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
+              {topChannel?.label ?? '—'}
+            </p>
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              {topChannel?.value ?? '—'}
             </p>
           </div>
         </div>
