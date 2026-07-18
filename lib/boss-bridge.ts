@@ -12,6 +12,9 @@ export type BossNativeSession = {
   restaurantId?: string
   apiBase?: string
   fullName?: string
+  /** UI dili: tr | en (Flutter cihaz / panel dili) */
+  locale?: string
+  apiEnv?: string
 }
 
 export type BossToNativeMessage =

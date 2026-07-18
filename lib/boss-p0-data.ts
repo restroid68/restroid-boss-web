@@ -21,6 +21,12 @@ import {
 } from '@/lib/boss-mock'
 import { bossFetch, formatMoneyTR, todayYmd } from '@/lib/boss-api'
 import { readNativeSession } from '@/lib/boss-bridge'
+import {
+  labelOpAction,
+  labelOpEntity,
+  labelOpPage,
+  resolveBossUiLocale,
+} from '@/lib/boss-operation-log-labels'
 
 export type AnaDashboardData = {
   restaurantName: string
@@ -82,80 +88,35 @@ function asPlainString(v: unknown, fallback = ''): string {
   return fallback
 }
 
-function friendlyKeyLabel(raw: string): string {
-  const key = raw.trim().toLowerCase()
-  if (!key) return ''
-  const hit = ENTITY_PAGE_TR[key]
-  if (hit) return hit
-  // snake_case → kısa okunur (teknik anahtar gösterme)
-  return key
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-const ACTION_TR: Record<string, string> = {
-  create: 'Oluşturma',
-  update: 'Güncelleme',
-  delete: 'Silme',
-  login: 'Giriş',
-  logout: 'Çıkış',
-  view: 'Görüntüleme',
-  export: 'Dışa aktarma',
-  undo: 'Geri alma',
-}
-
-/** entityType / pageKey → Türkçe etiket */
-const ENTITY_PAGE_TR: Record<string, string> = {
-  inventory_count: 'Stok sayımı',
-  inventory_counts: 'Stok sayımı',
-  hq_stock_inventory_counts: 'Stok sayımı',
-  product: 'Ürün',
-  product_catalog: 'Ürün kataloğu',
-  product_category: 'Kategori',
-  personnel: 'Personel',
-  staff: 'Personel',
-  customer: 'Müşteri',
-  supplier: 'Tedarikçi',
-  license: 'Lisans',
-  super_admin_issued_license: 'Lisans',
-  service_channel: 'Servis türü',
-  branch: 'Şube',
-  cash_account: 'Kasa hesabı',
-  accounting_transaction: 'Muhasebe hareketi',
-  online_order: 'Online sipariş',
-  qr_menu_order: 'QR sipariş',
-  dashboard: 'Ana sayfa',
-  stock: 'Stok',
-  definitions: 'Tanımlar',
-  settings: 'Ayarlar',
-}
-
-/** detail JSON’dan yalnızca insan okunur kısa ipucu */
-function friendlyDetailHint(detail: unknown): string {
+/** detail JSON’dan yalnızca insan okunur kısa ipucu (dil duyarlı) */
+function friendlyDetailHint(detail: unknown, locale: 'tr' | 'en'): string {
   const m = asMap(detail)
   if (!m) return asPlainString(detail, '')
   const orderNo = asPlainString(m.orderNumber ?? m.order_number, '')
-  if (orderNo) return `Sipariş ${orderNo}`
+  if (orderNo) return locale === 'en' ? `Order ${orderNo}` : `Sipariş ${orderNo}`
   const name = asPlainString(m.name ?? m.productName ?? m.title ?? m.label, '')
   if (name) return name
   if (typeof m.lineCount === 'number' && Number.isFinite(m.lineCount)) {
-    return `${m.lineCount} satır`
+    return locale === 'en' ? `${m.lineCount} lines` : `${m.lineCount} satır`
   }
-  if (m.markAll === true) return 'Toplu işaretleme'
-  if (typeof m.inserted === 'number') return `${m.inserted} kayıt`
+  if (m.markAll === true) return locale === 'en' ? 'Bulk update' : 'Toplu işaretleme'
+  if (typeof m.inserted === 'number') {
+    return locale === 'en' ? `${m.inserted} records` : `${m.inserted} kayıt`
+  }
   return ''
 }
 
 function formatOperationAlert(raw: unknown, index: number): AlertRow {
+  const locale = resolveBossUiLocale()
   const row = asMap(raw) ?? {}
-  const actionKey = asPlainString(row.action, 'işlem').toLowerCase()
-  const actionTr = ACTION_TR[actionKey] ?? 'İşlem'
-  const entity = friendlyKeyLabel(asPlainString(row.entityType, ''))
+  const actionKey = asPlainString(row.action, '').toLowerCase()
+  const actionLabel = labelOpAction(actionKey || 'other', locale)
+  const entity = labelOpEntity(asPlainString(row.entityType, ''), locale)
   const actor = asPlainString(row.actorName, '')
-  const page = friendlyKeyLabel(asPlainString(row.pageKey, ''))
-  const hint = friendlyDetailHint(row.detail)
+  const page = labelOpPage(asPlainString(row.pageKey, ''), locale)
+  const hint = friendlyDetailHint(row.detail, locale)
 
-  const message = [actionTr, entity].filter(Boolean).join(' · ') || actionTr
+  const message = [actionLabel, entity].filter(Boolean).join(' · ') || actionLabel
   const detailParts = [actor, page && page !== entity ? page : '', hint].filter(Boolean)
   const detail = detailParts.join(' · ') || '—'
 
@@ -436,6 +397,7 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
       ? logs.data!.logs!
       : []
 
+  const locale = resolveBossUiLocale()
   const alerts: AuditAlert[] = items.map((raw, i) => {
     const row = asMap(raw) ?? {}
     const action = asPlainString(row.action ?? row.actionKey, '').toLowerCase()
@@ -451,19 +413,19 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
         ? 'kritik'
         : 'uyari'
 
-    const actionTr = ACTION_TR[action] ?? 'İşlem'
-    const entity = friendlyKeyLabel(asPlainString(row.entityType, ''))
+    const actionLabel = labelOpAction(action || 'other', locale)
+    const entity = labelOpEntity(asPlainString(row.entityType, ''), locale)
     const detailAmt = asMap(row.detail)?.amount
     const target =
-      friendlyKeyLabel(asPlainString(row.pageKey ?? row.page ?? row.target, '')) ||
-      friendlyDetailHint(row.detail) ||
+      labelOpPage(asPlainString(row.pageKey ?? row.page ?? row.target, ''), locale) ||
+      friendlyDetailHint(row.detail, locale) ||
       '—'
 
     return {
       id: asPlainString(row.id, String(i)),
       severity,
       category,
-      title: entity ? `${actionTr} · ${entity}` : actionTr,
+      title: entity ? `${actionLabel} · ${entity}` : actionLabel,
       who: asPlainString(row.userName ?? row.actorName ?? row.email, '—'),
       target,
       amount:
