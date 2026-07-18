@@ -18,6 +18,8 @@ export type BossToNativeMessage =
   | { type: 'openMic' }
   | { type: 'speak'; text: string }
   | { type: 'switchRestaurant' }
+  | { type: 'openDrawer' }
+  | { type: 'openMenu' }
   | { type: 'logout' }
   | { type: 'openExternal'; url: string }
   | { type: 'navigate'; path: string }
