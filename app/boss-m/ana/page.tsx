@@ -39,30 +39,39 @@ export default function BossMDashboard() {
   }
 
   const session = readNativeSession()
+  // Flutter app bar restoran adını gösterir — WebView içinde tekrar etme
+  const nativeShell = Boolean(session?.token)
 
   return (
     <main className="flex flex-col gap-4 pb-4">
-      <header className="px-4 pt-5 pb-1 flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <button
-            type="button"
-            onClick={() => postToNative({ type: 'switchRestaurant' })}
-            className="flex items-center gap-2 text-left active:opacity-80"
-          >
-            <Store size={15} className="text-primary shrink-0" />
-            <span className="text-base font-bold text-foreground">
-              {data.restaurantName || session?.restaurantName || 'Restroid'}
-            </span>
-            <span className="px-2 py-0.5 bg-surface-2 border border-border rounded-full text-[10px] font-medium text-muted-foreground inline-flex items-center gap-0.5">
-              {data.branchLabel}
-              <ChevronDown size={10} />
-            </span>
-          </button>
-          <span className="text-xs text-muted-foreground pl-0.5 capitalize">
+      <header className="px-4 pt-3 pb-1">
+        {nativeShell ? (
+          <span className="text-xs text-muted-foreground capitalize">
             {today} &mdash; Bugün
             {data.source === 'mock' ? ' · örnek veri' : ''}
           </span>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-0.5 pt-2">
+            <button
+              type="button"
+              onClick={() => postToNative({ type: 'switchRestaurant' })}
+              className="flex items-center gap-2 text-left active:opacity-80"
+            >
+              <Store size={15} className="text-primary shrink-0" />
+              <span className="text-base font-bold text-foreground">
+                {data.restaurantName || session?.restaurantName || 'Restroid'}
+              </span>
+              <span className="px-2 py-0.5 bg-surface-2 border border-border rounded-full text-[10px] font-medium text-muted-foreground inline-flex items-center gap-0.5">
+                {data.branchLabel}
+                <ChevronDown size={10} />
+              </span>
+            </button>
+            <span className="text-xs text-muted-foreground pl-0.5 capitalize">
+              {today} &mdash; Bugün
+              {data.source === 'mock' ? ' · örnek veri' : ''}
+            </span>
+          </div>
+        )}
       </header>
 
       <BossMKpiRow metrics={data.kpis} />
