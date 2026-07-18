@@ -21,8 +21,8 @@ function kpiValue(data: AnaDashboardData, labelPart: string): string {
     k.label.toLowerCase().includes(labelPart.toLowerCase()),
   )
   if (!row) return '—'
-  const unit = row.unit === '₺' ? '₺' : ''
-  return `${unit}${row.value}`
+  const unit = row.unit === '₺' ? ' ₺' : row.unit ? ` ${row.unit}` : ''
+  return `${row.value}${unit}`
 }
 
 export function BossMaiDailySummaryCard() {

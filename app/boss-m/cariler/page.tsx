@@ -25,7 +25,7 @@ function balanceColor(balance: number, type: Cari['type']): string {
 }
 
 function fmtTL(n: number): string {
-  return '₺' + n.toLocaleString('tr-TR')
+  return `${n.toLocaleString('tr-TR')} ₺`
 }
 
 function CariDetailPanel({ cari, onClose }: { cari: Cari; onClose: () => void }) {
@@ -188,7 +188,7 @@ export default function BossMCarilerPage() {
           'text-sm font-bold tabular-nums',
           totalBalance > 0 ? 'text-success' : totalBalance < 0 ? 'text-warning' : 'text-muted-foreground'
         )}>
-          {totalBalance === 0 ? '₺0' : fmtTL(Math.abs(totalBalance))}
+          {totalBalance === 0 ? '0 ₺' : fmtTL(Math.abs(totalBalance))}
         </span>
       </div>
 

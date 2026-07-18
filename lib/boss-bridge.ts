@@ -24,6 +24,7 @@ export type BossNativeSession = {
 export type BossToNativeMessage =
   | { type: 'openMic' }
   | { type: 'speak'; text: string }
+  | { type: 'speakStop' }
   | { type: 'switchRestaurant' }
   | { type: 'openDrawer' }
   | { type: 'openMenu' }
@@ -35,6 +36,8 @@ export type BossToNativeMessage =
   | { type: 'ready' }
   | { type: 'appearance'; fontScale: string; themeAccent: string }
   | { type: 'cacheClear' }
+  /** Soft keyboard — Flutter alt nav gizle/göster */
+  | { type: 'keyboard'; open: boolean }
 
 type TranscriptHandler = (text: string) => void
 type SessionHandler = (session: BossNativeSession) => void

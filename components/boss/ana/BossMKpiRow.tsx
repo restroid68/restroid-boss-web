@@ -18,7 +18,12 @@ export function BossMKpiRow({ metrics }: BossMKpiRowProps) {
             {m.label}
           </span>
           <span className="text-sm font-bold text-foreground leading-tight tabular-nums">
-            {m.unit}{m.value}
+            {m.value}
+            {m.unit ? (
+              <span className="ml-0.5 text-[0.85em] font-semibold text-muted-foreground">
+                {m.unit}
+              </span>
+            ) : null}
           </span>
           <span
             className={cn(

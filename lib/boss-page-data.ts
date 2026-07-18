@@ -1147,6 +1147,57 @@ export async function loadExpenseCategories(): Promise<ExpenseCategoryOption[]> 
   })
 }
 
+export async function createExpenseCategoryLookup(
+  name: string,
+): Promise<{ id: string; label: string } | null> {
+  const res = await bossFetch<{ id?: string; label?: string }>('/api/accounting/lookups', {
+    method: 'POST',
+    body: JSON.stringify({ entity: 'expenseCategory', name: name.trim() }),
+  })
+  if (!res.ok || !res.data?.id) return null
+  invalidateBossCache('api:accounting')
+  return { id: String(res.data.id), label: String(res.data.label ?? name) }
+}
+
+export async function createExpenseSubcategoryLookup(
+  name: string,
+  parentId: string,
+): Promise<{ id: string; label: string } | null> {
+  const res = await bossFetch<{ id?: string; label?: string }>('/api/accounting/lookups', {
+    method: 'POST',
+    body: JSON.stringify({
+      entity: 'expenseSubcategory',
+      name: name.trim(),
+      parentId,
+    }),
+  })
+  if (!res.ok || !res.data?.id) return null
+  invalidateBossCache('api:accounting')
+  return { id: String(res.data.id), label: String(res.data.label ?? name) }
+}
+
+export async function createFinanceAccount(input: {
+  name: string
+  type?: 'cash' | 'bank' | 'card'
+}): Promise<{ ok: boolean; account?: Account; error?: string }> {
+  const res = await bossFetch<Record<string, unknown>>('/api/accounting/accounts', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: input.name.trim(),
+      type: input.type ?? 'cash',
+      currencyCode: 'TRY',
+      balance: 0,
+    }),
+  })
+  if (!res.ok || !res.data) {
+    return { ok: false, error: String(res.error ?? 'Hesap eklenemedi') }
+  }
+  invalidateBossCache('api:accounting')
+  invalidateBossCache('fn:loadAccountsPage')
+  invalidateBossCache('fn:loadKasaDashboard')
+  return { ok: true, account: mapFinanceAccount(res.data, 0) }
+}
+
 export async function postCashMovement(input: {
   type: string
   accountId: string

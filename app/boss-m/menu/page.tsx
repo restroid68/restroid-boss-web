@@ -8,6 +8,7 @@ import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { MENU_ITEMS, MENU_CATEGORIES } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadCatalogPage } from '@/lib/boss-page-data'
+import { BossMMoneyText } from '@/components/boss/BossMMoneyText'
 import { formatMoneyTR } from '@/lib/boss-money'
 import { cn } from '@/lib/utils'
 
@@ -272,9 +273,11 @@ export default function BossMMenuPage() {
                     )}
                   </div>
                 </div>
-                <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">
-                  ₺{formatMoneyTR(item.price, item.price % 1 === 0 ? 0 : 2)}
-                </span>
+                <BossMMoneyText
+                  amount={formatMoneyTR(item.price, item.price % 1 === 0 ? 0 : 2)}
+                  className="shrink-0 text-sm"
+                  amountClassName="text-foreground"
+                />
                 <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
               </button>
             ))}

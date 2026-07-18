@@ -134,3 +134,8 @@ body::-webkit-scrollbar { display: none; }
     min-width: 44px;
   }
 }
+
+/* Soft keyboard — Flutter alt nav gizlenince SPA alt boþluðunu küçült */
+html[data-keyboard='1'] .boss-native-scroll {
+  padding-bottom: 0.75rem !important;
+}

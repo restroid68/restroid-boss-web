@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { Volume2, VolumeX } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMaiDailySummaryCard } from '@/components/boss/ai/BossMaiDailySummaryCard'
 import { BossMaiChatBubble } from '@/components/boss/ai/BossMaiChatBubble'
@@ -12,12 +13,15 @@ import {
   AiAlertBanner,
 } from '@/components/boss/ai/BossMaiInlineCards'
 import { formatMoneyTR } from '@/lib/boss-api'
+import { cn } from '@/lib/utils'
 import type {
   BossAiAskApiAnalysis,
   BossAiAskApiChart,
   BossAiAskApiProductDraft,
   BossAiAskApiResult,
 } from '@/lib/boss-p0-data'
+
+const TTS_PREF_KEY = 'restroid_boss_ai_tts'
 
 function makeTime() {
   const now = new Date()
@@ -177,9 +181,33 @@ export default function BossMaiPage() {
   const [thinking, setThinking] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [pendingDraft, setPendingDraft] = useState<BossAiAskApiProductDraft | null>(null)
+  /** Sesli okuma — varsayılan kapalı; hoparlör ile açılır */
+  const [ttsOn, setTtsOn] = useState(false)
+  const ttsOnRef = useRef(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+  ttsOnRef.current = ttsOn
+
+  useEffect(() => {
+    try {
+      setTtsOn(window.localStorage.getItem(TTS_PREF_KEY) === '1')
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const toggleTts = useCallback(async () => {
+    const next = !ttsOnRef.current
+    setTtsOn(next)
+    try {
+      window.localStorage.setItem(TTS_PREF_KEY, next ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    const { postToNative } = await import('@/lib/boss-bridge')
+    if (!next) postToNative({ type: 'speakStop' })
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -253,8 +281,10 @@ export default function BossMaiPage() {
             confirming,
           )
           appendAssistant(api.answer, card)
-          const { postToNative } = await import('@/lib/boss-bridge')
-          postToNative({ type: 'speak', text: api.answer })
+          if (ttsOnRef.current) {
+            const { postToNative } = await import('@/lib/boss-bridge')
+            postToNative({ type: 'speak', text: api.answer })
+          }
           return
         }
 
@@ -293,10 +323,27 @@ export default function BossMaiPage() {
         title="Restroid AI"
         showBack
         trailing={
-          <span className="flex h-7 items-center gap-1.5 rounded-full border border-success/25 bg-success/15 px-2.5">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
-            <span className="text-[11px] font-medium text-success">Aktif</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void toggleTts()}
+              aria-label={ttsOn ? 'Sesli okumayı kapat' : 'Sesli okumayı aç'}
+              aria-pressed={ttsOn}
+              title={ttsOn ? 'Ses açık' : 'Ses kapalı'}
+              className={cn(
+                'flex h-11 w-11 items-center justify-center rounded-xl border transition-colors',
+                ttsOn
+                  ? 'border-primary/40 bg-primary/15 text-primary'
+                  : 'border-border bg-card/80 text-muted-foreground',
+              )}
+            >
+              {ttsOn ? <Volume2 size={20} strokeWidth={1.8} /> : <VolumeX size={20} strokeWidth={1.8} />}
+            </button>
+            <span className="flex h-7 items-center gap-1.5 rounded-full border border-success/25 bg-success/15 px-2.5">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
+              <span className="text-[11px] font-medium text-success">Aktif</span>
+            </span>
+          </div>
         }
       />
 

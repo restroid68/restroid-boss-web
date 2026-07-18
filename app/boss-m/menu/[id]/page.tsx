@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation'
 import { Check, Tag, Box } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
+import { BossMMoneyInput } from '@/components/boss/BossMMoneyInput'
 import { MENU_ITEMS } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
+import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import { loadCatalogPage, patchProductStockStatus } from '@/lib/boss-page-data'
+import { parseMoneyTR, sanitizeMoneyTyping } from '@/lib/boss-money'
 import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +43,7 @@ function BossMToggleRow({
 export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router  = useRouter()
+  const { keyboardOpen } = useBossKeyboard()
 
   const { data, loading } = useBossLoad(loadCatalogPage, {
     items: MENU_ITEMS,
@@ -63,7 +67,7 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
 
   useEffect(() => {
     if (!base) return
-    setPrice(String(base.price))
+    setPrice(sanitizeMoneyTyping(String(base.price)))
     setActive(base.active)
     setTukendi(base.tukendi)
   }, [base])
@@ -106,47 +110,31 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
     setTimeout(() => { setSaved(false); router.back() }, 900)
   }
 
-  const rawPrice = parseInt(price.replace(/\D/g, ''), 10)
-  const valid    = !isNaN(rawPrice) && rawPrice > 0
+  const rawPrice = parseMoneyTR(price)
+  const valid    = rawPrice > 0
 
   return (
     <main className="flex h-screen flex-col bg-transparent">
       <BossMPageHeader title={base.name} showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none pb-28">
-        <div className="px-4 pb-4 pt-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 text-xs text-muted-foreground">
-            <Tag size={10} />
-            {base.category}
-          </span>
-        </div>
+        {!keyboardOpen && (
+          <div className="px-4 pb-4 pt-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2.5 py-1 text-xs text-muted-foreground">
+              <Tag size={10} />
+              {base.category}
+            </span>
+          </div>
+        )}
 
-        <section className="mb-3 px-4">
+        <section className={cn('mb-3 px-4', keyboardOpen && 'sticky top-0 z-10 bg-background/95 py-2 backdrop-blur-sm')}>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
             Fiyat
           </p>
-          <div className="rounded-2xl border border-border bg-card/90 px-4 py-3.5">
-            <label className="mb-2 block text-xs text-muted-foreground">Satış fiyatı</label>
-            <div className="flex h-12 items-center gap-2 rounded-xl border border-border bg-surface-2 px-4">
-              <span className="text-lg font-bold text-muted-foreground">₺</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                onFocus={(e) => {
-                  requestAnimationFrame(() => {
-                    e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' })
-                  })
-                }}
-                placeholder="0"
-                className="flex-1 bg-transparent text-right text-2xl font-bold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/30"
-              />
-            </div>
-          </div>
+          <BossMMoneyInput value={price} onChange={setPrice} />
         </section>
 
-        {base.stock !== null && (
+        {!keyboardOpen && base.stock !== null && (
           <section className="px-4 mb-3">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
               Anlık Stok
@@ -165,6 +153,7 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
           </section>
         )}
 
+        {!keyboardOpen && (
         <section className="px-4 mb-3">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
             Durum
@@ -185,6 +174,7 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
             />
           </div>
         </section>
+        )}
 
         {saveError && (
           <p className="px-4 text-sm text-danger" role="alert">{saveError}</p>
