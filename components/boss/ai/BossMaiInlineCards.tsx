@@ -5,32 +5,58 @@ import { TrendingUp, TrendingDown, AlertTriangle, Minus } from 'lucide-react'
 /** Mini KPI strip embedded inside an assistant bubble */
 export function AiKpiStrip({
   rows,
+  hero = false,
 }: {
   rows: { label: string; value: string; delta?: string; sign?: 'up' | 'down' | 'flat' }[]
+  /** İlk satırı büyük rakam olarak vurgula (patron özeti) */
+  hero?: boolean
 }) {
+  if (!rows.length) return null
+  const [first, ...rest] = rows
+  const deltaClass = (sign?: 'up' | 'down' | 'flat') =>
+    sign === 'up'
+      ? 'text-[10px] font-medium text-success'
+      : sign === 'down'
+        ? 'text-[10px] font-medium text-danger'
+        : 'text-[10px] font-medium text-muted-foreground'
+
   return (
-    <div className="rounded-xl border border-border bg-surface-3 overflow-hidden divide-y divide-border">
-      {rows.map((r, i) => (
-        <div key={i} className="flex items-center justify-between px-3 py-2.5">
-          <span className="text-xs text-muted-foreground">{r.label}</span>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-foreground">{r.value}</span>
-            {r.delta && (
-              <span
-                className={
-                  r.sign === 'up'
-                    ? 'text-[10px] font-medium text-success'
-                    : r.sign === 'down'
-                    ? 'text-[10px] font-medium text-danger'
-                    : 'text-[10px] font-medium text-muted-foreground'
-                }
-              >
-                {r.delta}
+    <div className="rounded-xl border border-border bg-surface-3 overflow-hidden">
+      {hero && first ? (
+        <div className="px-3 py-3 border-b border-border bg-gradient-to-br from-primary/10 via-surface-3 to-surface-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {first.label}
+          </p>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-semibold tabular-nums tracking-tight text-foreground">
+              {first.value}
+            </span>
+            {first.delta ? (
+              <span className={deltaClass(first.sign)}>
+                {first.sign === 'up' ? (
+                  <TrendingUp className="inline h-3 w-3" />
+                ) : first.sign === 'down' ? (
+                  <TrendingDown className="inline h-3 w-3" />
+                ) : (
+                  <Minus className="inline h-3 w-3" />
+                )}{' '}
+                {first.delta}
               </span>
-            )}
+            ) : null}
           </div>
         </div>
-      ))}
+      ) : null}
+      <div className="divide-y divide-border">
+        {(hero ? rest : rows).map((r, i) => (
+          <div key={i} className="flex items-center justify-between px-3 py-2.5">
+            <span className="text-xs text-muted-foreground">{r.label}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold tabular-nums text-foreground">{r.value}</span>
+              {r.delta ? <span className={deltaClass(r.sign)}>{r.delta}</span> : null}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

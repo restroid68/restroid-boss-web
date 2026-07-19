@@ -620,7 +620,7 @@ export type BossAiAskApiAnalysis = {
 }
 
 export type BossAiAskApiChart = {
-  type?: 'bar' | 'compare'
+  type?: 'bar' | 'compare' | 'line'
   title?: string
   series?: Array<{ label: string; value: number }>
   seriesB?: Array<{ label: string; value: number }>

@@ -7,11 +7,14 @@ import { BossMaiDailySummaryCard } from '@/components/boss/ai/BossMaiDailySummar
 import { BossMaiChatBubble } from '@/components/boss/ai/BossMaiChatBubble'
 import type { ChatMessage } from '@/components/boss/ai/BossMaiChatBubble'
 import { BossMaiComposer } from '@/components/boss/ai/BossMaiComposer'
+import { BossMaiCommandSheet } from '@/components/boss/ai/BossMaiCommandSheet'
 import {
   AiKpiStrip,
-  AiRankedList,
   AiAlertBanner,
 } from '@/components/boss/ai/BossMaiInlineCards'
+import { AiChartsBlock } from '@/components/boss/ai/BossMaiAiCharts'
+import { useBossAiFavorites } from '@/hooks/use-boss-ai-favorites'
+import type { BossAiCommand } from '@/lib/boss-ai-commands'
 import { formatMoneyTR } from '@/lib/boss-api'
 import { cn } from '@/lib/utils'
 import type {
@@ -51,8 +54,11 @@ function analysisCard(analysis: BossAiAskApiAnalysis) {
   const cur = analysis.current
   const prev = analysis.previous
   const d = analysis.deltas
+  const prevLabel = prev?.label
+  const showPrev = prevLabel && prevLabel !== '—' && Number(prev?.netSales ?? 0) > 0
   return (
     <AiKpiStrip
+      hero
       rows={[
         {
           label: cur?.label ?? 'Bu dönem',
@@ -60,11 +66,15 @@ function analysisCard(analysis: BossAiAskApiAnalysis) {
           delta: pctLabel(d?.netSalesPct),
           sign: signFromPct(d?.netSalesPct),
         },
-        {
-          label: prev?.label ?? 'Önceki',
-          value: `${formatMoneyTR(Number(prev?.netSales ?? 0))} TL`,
-          sign: 'flat',
-        },
+        ...(showPrev
+          ? [
+              {
+                label: prevLabel,
+                value: `${formatMoneyTR(Number(prev?.netSales ?? 0))} TL`,
+                sign: 'flat' as const,
+              },
+            ]
+          : []),
         ...(analysis.productName
           ? [
               {
@@ -85,19 +95,7 @@ function analysisCard(analysis: BossAiAskApiAnalysis) {
 }
 
 function chartsCard(charts: BossAiAskApiChart[]) {
-  const first = charts[0]
-  if (!first?.series?.length) return null
-  return (
-    <AiRankedList
-      title={first.title || 'Grafik'}
-      accent="success"
-      rows={first.series.slice(0, 8).map((s) => ({
-        label: s.label,
-        sub: first.seriesALabel || 'Değer',
-        value: `${formatMoneyTR(Number(s.value))} TL`,
-      }))}
-    />
-  )
+  return <AiChartsBlock charts={charts} />
 }
 
 function productDraftCard(
@@ -253,7 +251,7 @@ const WELCOME: ChatMessage = {
   id: '1',
   role: 'assistant',
   time: makeTime(),
-  text: 'Merhaba. Ciro, stok, açık hesap veya ürün ekleme hakkında sorabilirsin.',
+  text: 'Merhaba. Alttan Komutlar ile hazır analiz seçebilir veya sık kullandıklarını yıldızlayabilirsin.',
 }
 
 export default function BossMaiPage() {
@@ -263,6 +261,7 @@ export default function BossMaiPage() {
   const [pendingDraft, setPendingDraft] = useState<BossAiAskApiProductDraft | null>(null)
   const [pendingBulk, setPendingBulk] = useState<BossAiAskApiBulkDraft | null>(null)
   const [canUndoBulk, setCanUndoBulk] = useState(false)
+  const [commandsOpen, setCommandsOpen] = useState(false)
   /** Sesli okuma — varsayılan kapalı; hoparlör ile açılır */
   const [ttsOn, setTtsOn] = useState(false)
   const ttsOnRef = useRef(false)
@@ -270,6 +269,8 @@ export default function BossMaiPage() {
   const messagesRef = useRef(messages)
   messagesRef.current = messages
   ttsOnRef.current = ttsOn
+
+  const { favorites, isFavorite, toggleFavorite, removeFavorite } = useBossAiFavorites()
 
   useEffect(() => {
     try {
@@ -517,10 +518,13 @@ export default function BossMaiPage() {
                   />
                 </svg>
               </span>
-              <div className="flex items-center gap-1 bg-surface-2 border border-border/60 rounded-2xl rounded-bl-sm px-3.5 py-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+              <div className="flex flex-col gap-1 bg-surface-2 border border-border/60 rounded-2xl rounded-bl-sm px-3.5 py-2.5 min-w-[140px]">
+                <span className="text-[11px] font-medium text-muted-foreground">Hesaplanıyor…</span>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+                </div>
               </div>
             </div>
           )}
@@ -529,7 +533,24 @@ export default function BossMaiPage() {
         </div>
       </div>
 
-      <BossMaiComposer onSend={(t) => void handleSend(t)} disabled={thinking} />
+      <BossMaiComposer
+        onSend={(t) => void handleSend(t)}
+        disabled={thinking}
+        favorites={favorites}
+        onOpenCommands={() => setCommandsOpen(true)}
+        onRemoveFavorite={removeFavorite}
+      />
+
+      <BossMaiCommandSheet
+        open={commandsOpen}
+        onClose={() => setCommandsOpen(false)}
+        isFavorite={isFavorite}
+        onToggleFavorite={toggleFavorite}
+        onSelect={(cmd: BossAiCommand) => {
+          setCommandsOpen(false)
+          void handleSend(cmd.prompt)
+        }}
+      />
     </div>
   )
 }
