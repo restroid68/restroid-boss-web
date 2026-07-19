@@ -169,14 +169,14 @@ export const BOSS_PAGE_LABELS_TR: Record<string, string> = {
 
 export const BOSS_PAGE_LABELS_EN: Record<string, string> = {
 
-  hq_dashboard: "HQ dashboard",
-  hq_branches: "HQ / Branches",
-  hq_branch_overview: "HQ / Branch overview",
-  hq_stock_transfers: "HQ / Stock transfers",
-  hq_stock_inventory_counts: "HQ / Inventory counts",
-  hq_stock_inventory_count_expected: "HQ / Count expected qty / variance",
-  hq_stock_management: "HQ / Stock management",
-  hq_menu_management: "HQ / Menu management",
+  hq_dashboard: "Head office dashboard",
+  hq_branches: "Head office / Branches",
+  hq_branch_overview: "Head office / Branch overview",
+  hq_stock_transfers: "Head office / Stock transfers",
+  hq_stock_inventory_counts: "Head office / Inventory counts",
+  hq_stock_inventory_count_expected: "Head office / Count expected qty / variance",
+  hq_stock_management: "Head office / Stock management",
+  hq_menu_management: "Head office / Menu management",
   dashboard: "Today’s overview",
   branch_finance: "Finance",
   orders: "Orders",

@@ -149,7 +149,11 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback: AnaDashboardData = {
     restaurantName: session?.restaurantName || 'Restroid',
-    branchLabel: session?.branchCode || 'HQ',
+    branchLabel: (() => {
+      const c = String(session?.branchCode ?? '').trim()
+      if (!c || c.toUpperCase() === 'HQ') return ''
+      return c
+    })(),
     kpis: ANA_KPIS,
     channels: CHANNEL_CARDS,
     alerts: DIKKAT_ALERTS,
@@ -283,7 +287,11 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
 
   return {
     restaurantName: session.restaurantName || fallback.restaurantName,
-    branchLabel: session.branchCode || 'HQ',
+    branchLabel: (() => {
+      const c = String(session.branchCode ?? '').trim()
+      if (!c || c.toUpperCase() === 'HQ') return ''
+      return c
+    })(),
     kpis,
     channels,
     alerts,

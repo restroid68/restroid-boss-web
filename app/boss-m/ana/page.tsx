@@ -13,7 +13,7 @@ import { Store, ChevronDown } from 'lucide-react'
 
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
-  branchLabel: 'HQ',
+  branchLabel: '',
   kpis: ANA_KPIS,
   channels: CHANNEL_CARDS,
   alerts: DIKKAT_ALERTS,
@@ -64,10 +64,14 @@ export default function BossMDashboard() {
               <span className="text-base font-bold text-foreground">
                 {data.restaurantName || session?.restaurantName || 'Restroid'}
               </span>
-              <span className="px-2 py-0.5 bg-surface-2 border border-border rounded-full text-[10px] font-medium text-muted-foreground inline-flex items-center gap-0.5">
-                {data.branchLabel}
-                <ChevronDown size={10} />
-              </span>
+              {data.branchLabel.trim() ? (
+                <span className="px-2 py-0.5 bg-surface-2 border border-border rounded-full text-[10px] font-medium text-muted-foreground inline-flex items-center gap-0.5">
+                  {data.branchLabel}
+                  <ChevronDown size={10} />
+                </span>
+              ) : (
+                <ChevronDown size={14} className="text-muted-foreground shrink-0" />
+              )}
             </button>
             <span className="text-xs text-muted-foreground pl-0.5 capitalize">
               {today} &mdash; Bugün
