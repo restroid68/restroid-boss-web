@@ -38,14 +38,18 @@ export type BossToNativeMessage =
   | { type: 'cacheClear' }
   /** Soft keyboard — Flutter alt nav gizle/göster */
   | { type: 'keyboard'; open: boolean }
+  | { type: 'setNotificationsEnabled'; enabled: boolean }
+  | { type: 'getNotificationsEnabled' }
 
 type TranscriptHandler = (text: string) => void
 type SessionHandler = (session: BossNativeSession) => void
 type CacheClearHandler = () => void
+type NotificationsHandler = (enabled: boolean) => void
 
 const transcriptHandlers = new Set<TranscriptHandler>()
 const sessionHandlers = new Set<SessionHandler>()
 const cacheClearHandlers = new Set<CacheClearHandler>()
+const notificationsHandlers = new Set<NotificationsHandler>()
 
 declare global {
   interface Window {
@@ -58,6 +62,7 @@ declare global {
     /** @deprecated internal fan-out — use onNativeSession */
     __RESTROID_BOSS_ON_SESSION__?: SessionHandler
     __RESTROID_BOSS_ON_CACHE_CLEAR__?: CacheClearHandler
+    __RESTROID_BOSS_ON_NOTIFICATIONS__?: NotificationsHandler
   }
 }
 
@@ -86,6 +91,15 @@ function installGlobalFanout() {
     for (const h of cacheClearHandlers) {
       try {
         h()
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  window.__RESTROID_BOSS_ON_NOTIFICATIONS__ = (enabled: boolean) => {
+    for (const h of notificationsHandlers) {
+      try {
+        h(enabled)
       } catch {
         /* ignore */
       }
@@ -144,6 +158,23 @@ export function onNativeCacheClear(handler: CacheClearHandler): () => void {
   return () => {
     cacheClearHandlers.delete(handler)
   }
+}
+
+export function onNativeNotifications(handler: NotificationsHandler): () => void {
+  if (typeof window === 'undefined') return () => {}
+  installGlobalFanout()
+  notificationsHandlers.add(handler)
+  return () => {
+    notificationsHandlers.delete(handler)
+  }
+}
+
+export function setBossNotificationsEnabled(enabled: boolean): void {
+  postToNative({ type: 'setNotificationsEnabled', enabled })
+}
+
+export function requestBossNotificationsEnabled(): void {
+  postToNative({ type: 'getNotificationsEnabled' })
 }
 
 export function dispatchNativeCacheClear(): void {

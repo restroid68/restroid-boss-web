@@ -1,7 +1,9 @@
 'use client'
 
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
+  Bell,
   Signal,
   CreditCard,
   LayoutGrid,
@@ -12,18 +14,25 @@ import {
   Palette,
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
+import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import { SISTEM_CARDS } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadSistemHub } from '@/lib/boss-page-data'
+import { bossFetch } from '@/lib/boss-api'
+import {
+  onNativeNotifications,
+  requestBossNotificationsEnabled,
+  setBossNotificationsEnabled,
+} from '@/lib/boss-bridge'
 
 const ICON_MAP: Record<string, React.ElementType> = {
   type: Type,
   palette: Palette,
-  signal:       Signal,
+  signal: Signal,
   'credit-card': CreditCard,
-  layout:       LayoutGrid,
-  flame:        Flame,
-  remote:       MonitorSmartphone,
+  layout: LayoutGrid,
+  flame: Flame,
+  remote: MonitorSmartphone,
 }
 
 const ACCENT_CYCLE = [
@@ -44,14 +53,64 @@ export default function BossMSistemPage() {
     { cacheKey: 'page:sistem-shell', ttlMs: 600_000, persist: true },
   )
 
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [notificationsBusy, setNotificationsBusy] = useState(false)
+
+  const loadPrefs = useCallback(async () => {
+    const res = await bossFetch<{ enabled?: boolean }>('/api/boss/devices/notification-prefs')
+    if (res.ok && res.data && typeof res.data === 'object') {
+      setNotificationsEnabled(Boolean((res.data as { enabled?: boolean }).enabled))
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadPrefs()
+    requestBossNotificationsEnabled()
+    return onNativeNotifications((enabled) => {
+      setNotificationsEnabled(enabled)
+    })
+  }, [loadPrefs])
+
+  const onToggleNotifications = async (next: boolean) => {
+    if (notificationsBusy) return
+    setNotificationsBusy(true)
+    setNotificationsEnabled(next)
+    try {
+      const res = await bossFetch<{ enabled?: boolean }>('/api/boss/devices/notification-prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      })
+      if (!res.ok) {
+        setNotificationsEnabled(!next)
+        return
+      }
+      setBossNotificationsEnabled(next)
+    } catch {
+      setNotificationsEnabled(!next)
+    } finally {
+      setNotificationsBusy(false)
+    }
+  }
+
   return (
     <main className="flex flex-col gap-0 pb-4">
       <BossMPageHeader title="Sistem Ayarları" showBack />
 
-      <p className="px-5 pb-4 text-sm text-muted-foreground leading-relaxed">
-        Restoranınızın operasyonel ayarlarını bu ekrandan yönetin.
-        Değişiklikler anlık sisteme yansır.
-      </p>
+      <div className="mx-4 mb-3 flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Bell size={22} strokeWidth={1.6} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground leading-tight">Bildirimler</p>
+        </div>
+        <BossMSwitch
+          checked={notificationsEnabled}
+          onChange={(v) => void onToggleNotifications(v)}
+          aria-label="Bildirimler"
+          className={notificationsBusy ? 'opacity-60' : undefined}
+        />
+      </div>
 
       <div className="flex flex-col gap-2 px-4">
         {loading ? (
@@ -62,7 +121,7 @@ export default function BossMSistemPage() {
           </div>
         ) : (
           data.cards.map((card, idx) => {
-            const Icon   = ICON_MAP[card.icon] ?? Signal
+            const Icon = ICON_MAP[card.icon] ?? Signal
             const accent = ACCENT_CYCLE[idx % ACCENT_CYCLE.length]
 
             return (
