@@ -16,6 +16,7 @@ import { formatMoneyTR } from '@/lib/boss-api'
 import { cn } from '@/lib/utils'
 import type {
   BossAiAskApiAnalysis,
+  BossAiAskApiBulkDraft,
   BossAiAskApiChart,
   BossAiAskApiProductDraft,
   BossAiAskApiResult,
@@ -147,11 +148,90 @@ function productDraftCard(
   )
 }
 
+function bulkDraftCard(
+  draft: BossAiAskApiBulkDraft,
+  onConfirm: () => void,
+  onUndo: () => void,
+  confirming: boolean,
+  showUndo: boolean,
+  onPickOption?: (label: string) => void,
+) {
+  if (draft.queryOnly) return null
+  const lines = (draft.summaryLines ?? []).join(' · ')
+  const opts = draft.optionItems ?? []
+  const detailText =
+    lines ||
+    (draft.sampleNames?.length
+      ? `Örnek: ${draft.sampleNames.join(', ')}`
+      : draft.scopeLabel || '')
+  return (
+    <div className="space-y-2">
+      <AiAlertBanner
+        message={
+          draft.canConfirm
+            ? `${draft.targetCount ?? 0} ürün — onay bekliyor`
+            : draft.clarificationPrompt || 'Toplu güncelleme'
+        }
+        detail={detailText || '—'}
+      />
+      {opts.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {opts.slice(0, 12).map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              disabled={confirming}
+              onClick={() => onPickOption?.(o.label)}
+              className="rounded-lg border border-border bg-surface-2 px-2 py-1 text-[11px] text-foreground active:bg-primary/15"
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {draft.canConfirm ? (
+        <button
+          type="button"
+          disabled={confirming}
+          onClick={onConfirm}
+          className="h-10 w-full rounded-xl border border-primary/40 bg-primary/15 text-sm font-medium text-primary disabled:opacity-50"
+        >
+          {confirming ? 'Uygulanıyor…' : 'Onayla ve uygula'}
+        </button>
+      ) : null}
+      {showUndo ? (
+        <button
+          type="button"
+          disabled={confirming}
+          onClick={onUndo}
+          className="h-10 w-full rounded-xl border border-warning/40 bg-warning/10 text-sm font-medium text-warning disabled:opacity-50"
+        >
+          Son işlemi geri al
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
 function buildAssistantCard(
   api: BossAiAskApiResult,
   onConfirmProduct: () => void,
+  onConfirmBulk: () => void,
+  onUndoBulk: () => void,
   confirming: boolean,
+  showUndo: boolean,
+  onPickOption?: (label: string) => void,
 ): ReactNode | undefined {
+  if (api.bulkDraft) {
+    return bulkDraftCard(
+      api.bulkDraft,
+      onConfirmBulk,
+      onUndoBulk,
+      confirming,
+      showUndo,
+      onPickOption,
+    )
+  }
   if (api.productDraft) {
     return productDraftCard(api.productDraft, onConfirmProduct, confirming)
   }
@@ -181,6 +261,8 @@ export default function BossMaiPage() {
   const [thinking, setThinking] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [pendingDraft, setPendingDraft] = useState<BossAiAskApiProductDraft | null>(null)
+  const [pendingBulk, setPendingBulk] = useState<BossAiAskApiBulkDraft | null>(null)
+  const [canUndoBulk, setCanUndoBulk] = useState(false)
   /** Sesli okuma — varsayılan kapalı; hoparlör ile açılır */
   const [ttsOn, setTtsOn] = useState(false)
   const ttsOnRef = useRef(false)
@@ -242,6 +324,49 @@ export default function BossMaiPage() {
     [confirming, appendAssistant],
   )
 
+  const handleUndoBulk = useCallback(async () => {
+    if (confirming) return
+    setConfirming(true)
+    try {
+      const { undoBossAiBulkApi } = await import('@/lib/boss-p0-data')
+      const res = await undoBossAiBulkApi()
+      appendAssistant(res.message)
+      if (res.ok) setCanUndoBulk(false)
+    } finally {
+      setConfirming(false)
+    }
+  }, [confirming, appendAssistant])
+
+  const handleConfirmBulk = useCallback(
+    async (draft: BossAiAskApiBulkDraft) => {
+      if (confirming) return
+      setConfirming(true)
+      try {
+        const { confirmBossAiBulkApi } = await import('@/lib/boss-p0-data')
+        const res = await confirmBossAiBulkApi(draft)
+        appendAssistant(
+          res.message,
+          res.ok && res.canUndo
+            ? bulkDraftCard(
+                { ...draft, canConfirm: false, summaryLines: [] },
+                () => {},
+                () => void handleUndoBulk(),
+                false,
+                true,
+              )
+            : undefined,
+        )
+        if (res.ok) {
+          setPendingBulk(null)
+          setCanUndoBulk(Boolean(res.canUndo))
+        }
+      } finally {
+        setConfirming(false)
+      }
+    },
+    [confirming, appendAssistant, handleUndoBulk],
+  )
+
   const handleSend = useCallback(
     async (text: string) => {
       if (thinking) return
@@ -264,21 +389,36 @@ export default function BossMaiPage() {
 
         const api = await askBossAiApi(text, history, {
           pendingProductDraft: pendingDraft,
+          pendingBulkDraft: pendingBulk,
         })
 
         if (api.ok && api.answer) {
           const draft = api.productDraft ?? null
+          const bulk = api.bulkDraft ?? null
           if (draft) setPendingDraft(draft)
-          else if (api.intent && api.intent !== 'product_create' && api.intent !== 'product_update') {
+          else if (
+            api.intent &&
+            api.intent !== 'product_create' &&
+            api.intent !== 'product_update'
+          ) {
             setPendingDraft(null)
           }
+          if (bulk) setPendingBulk(bulk)
+          else if (api.intent && api.intent !== 'product_bulk') setPendingBulk(null)
+          if (api.intent === 'product_bulk_undo') setCanUndoBulk(false)
 
           const card = buildAssistantCard(
             api,
             () => {
               if (draft) void handleConfirmProduct(draft)
             },
+            () => {
+              if (bulk) void handleConfirmBulk(bulk)
+            },
+            () => void handleUndoBulk(),
             confirming,
+            canUndoBulk && api.intent === 'product_bulk_undo' ? false : canUndoBulk,
+            (label) => void handleSend(label),
           )
           appendAssistant(api.answer, card)
           if (ttsOnRef.current) {
@@ -299,7 +439,17 @@ export default function BossMaiPage() {
         setThinking(false)
       }
     },
-    [thinking, pendingDraft, confirming, appendAssistant, handleConfirmProduct],
+    [
+      thinking,
+      pendingDraft,
+      pendingBulk,
+      confirming,
+      canUndoBulk,
+      appendAssistant,
+      handleConfirmProduct,
+      handleConfirmBulk,
+      handleUndoBulk,
+    ],
   )
 
   useEffect(() => {

@@ -578,6 +578,21 @@ export type BossAiAskApiProductDraft = {
   [key: string]: unknown
 }
 
+export type BossAiAskApiBulkDraft = {
+  kind: 'product_bulk'
+  scopeLabel?: string
+  targetCount?: number
+  sampleNames?: string[]
+  canConfirm?: boolean
+  queryOnly?: boolean
+  pendingClarification?: string | null
+  clarificationPrompt?: string
+  optionItems?: Array<{ id: string; label: string }>
+  summaryLines?: string[]
+  warnings?: string[]
+  [key: string]: unknown
+}
+
 export type BossAiAskApiAnalysis = {
   compare?: string
   productName?: string | null
@@ -618,6 +633,7 @@ export type BossAiAskApiResult = {
   answer: string
   intent?: string
   productDraft?: BossAiAskApiProductDraft | null
+  bulkDraft?: BossAiAskApiBulkDraft | null
   analysis?: BossAiAskApiAnalysis | null
   charts?: BossAiAskApiChart[]
   period?: { from?: string; to?: string; days?: number } | null
@@ -630,6 +646,7 @@ export async function askBossAiApi(
   opts?: {
     days?: number
     pendingProductDraft?: BossAiAskApiProductDraft | null
+    pendingBulkDraft?: BossAiAskApiBulkDraft | null
   },
 ): Promise<BossAiAskApiResult> {
   const session = readNativeSession()
@@ -641,6 +658,7 @@ export async function askBossAiApi(
     message?: string
     intent?: string
     productDraft?: BossAiAskApiProductDraft | null
+    bulkDraft?: BossAiAskApiBulkDraft | null
     analysis?: BossAiAskApiAnalysis | null
     charts?: BossAiAskApiChart[]
     period?: { from?: string; to?: string; days?: number } | null
@@ -655,6 +673,7 @@ export async function askBossAiApi(
       ...(opts?.pendingProductDraft
         ? { pendingProductDraft: opts.pendingProductDraft }
         : {}),
+      ...(opts?.pendingBulkDraft ? { pendingBulkDraft: opts.pendingBulkDraft } : {}),
     }),
   })
   if (!res.ok || !res.data) {
@@ -670,6 +689,7 @@ export async function askBossAiApi(
     answer,
     intent: res.data.intent,
     productDraft: res.data.productDraft ?? null,
+    bulkDraft: res.data.bulkDraft ?? null,
     analysis: res.data.analysis ?? null,
     charts: Array.isArray(res.data.charts) ? res.data.charts : [],
     period: res.data.period ?? null,
@@ -699,5 +719,54 @@ export async function confirmBossAiProductApi(
   return {
     ok: true,
     message: String(res.data?.message ?? 'Ürün kaydedildi.'),
+  }
+}
+
+export async function confirmBossAiBulkApi(
+  draft: BossAiAskApiBulkDraft,
+): Promise<{ ok: boolean; message: string; canUndo?: boolean }> {
+  const session = readNativeSession()
+  if (!session?.token) return { ok: false, message: 'Oturum yok' }
+  const res = await bossFetch<{
+    ok?: boolean
+    message?: string
+    answer?: string
+    error?: string
+    undoId?: string
+  }>('/api/boss/ai/confirm-bulk', {
+    method: 'POST',
+    timeoutMs: 90_000,
+    body: JSON.stringify({ draft }),
+  })
+  if (!res.ok) {
+    return {
+      ok: false,
+      message: String(res.error ?? 'Toplu güncelleme başarısız'),
+    }
+  }
+  return {
+    ok: true,
+    message: String(res.data?.message ?? res.data?.answer ?? 'Güncellendi.'),
+    canUndo: Boolean(res.data?.undoId),
+  }
+}
+
+export async function undoBossAiBulkApi(): Promise<{ ok: boolean; message: string }> {
+  const session = readNativeSession()
+  if (!session?.token) return { ok: false, message: 'Oturum yok' }
+  const res = await bossFetch<{ ok?: boolean; message?: string; error?: string }>(
+    '/api/boss/ai/confirm-bulk',
+    {
+      method: 'POST',
+      timeoutMs: 60_000,
+      body: JSON.stringify({ undo: true }),
+    },
+  )
+  if (!res.ok) {
+    return { ok: false, message: String(res.error ?? 'Geri alma başarısız') }
+  }
+  return {
+    ok: Boolean(res.data?.ok ?? true),
+    message: String(res.data?.message ?? 'Geri alındı.'),
   }
 }
