@@ -135,7 +135,25 @@ body::-webkit-scrollbar { display: none; }
   }
 }
 
+/* Flutter bottom nav yüksekliği — kaydet çubukları bunun üstünde */
+:root {
+  --boss-native-nav-inset: 7.5rem;
+}
+
 /* Soft keyboard open: shrink SPA bottom padding (Flutter nav hidden) */
 html[data-keyboard='1'] .boss-native-scroll {
   padding-bottom: 0.75rem !important;
+}
+
+html[data-keyboard='1'] {
+  --boss-native-nav-inset: 0.75rem;
+}
+
+/* Sabit alt aksiyon (Kaydet vb.) — bottom nav üstünde */
+.boss-fixed-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: var(--boss-native-nav-inset);
+  z-index: 30;
 }

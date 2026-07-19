@@ -74,6 +74,18 @@ function str(v: unknown, fallback = ''): string {
   return s || fallback
 }
 
+/** `u-kg` / unitId → okunur birim (kg). UUID benzeri id gösterme. */
+export function formatStockUnit(raw: unknown): string {
+  const s = str(raw)
+  if (!s) return 'adet'
+  if (/^u[-_]/i.test(s)) {
+    const label = s.replace(/^u[-_]/i, '').trim()
+    return label || 'adet'
+  }
+  if (/^[0-9a-f]{8}-/i.test(s) || s.length > 24) return 'adet'
+  return s
+}
+
 function fmtDateShort(iso: unknown): string {
   const s = str(iso)
   if (!s) return '—'
@@ -143,6 +155,17 @@ function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: 
     row.isActive !== false &&
     row.hidden !== true &&
     row.status !== 'passive'
+  const servicePricesRaw = row.servicePrices
+  const servicePrices =
+    servicePricesRaw && typeof servicePricesRaw === 'object' && !Array.isArray(servicePricesRaw)
+      ? (servicePricesRaw as Record<string, { sale: string; original: string }>)
+      : undefined
+  const prodRaw = row.productionAreasByService
+  const productionAreasByService =
+    prodRaw && typeof prodRaw === 'object' && !Array.isArray(prodRaw)
+      ? (prodRaw as Record<string, string[]>)
+      : undefined
+
   return {
     id: str(row.uuid ?? row.id),
     name,
@@ -152,7 +175,14 @@ function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: 
     tukendi: depleted,
     stock: depleted ? 0 : null,
     sku: str(row.code ?? row.plu ?? ''),
+    code: str(row.code ?? row.plu ?? ''),
     categoryId: str(row.categoryId ?? row.category_id) || undefined,
+    priceByService: row.priceByService === true,
+    servicePrices,
+    taxRateId: str(row.taxRateId) || undefined,
+    taxLabel: str(row.taxLabel) || undefined,
+    productionByService: row.productionByService === true,
+    productionAreasByService,
   }
 }
 
@@ -226,10 +256,20 @@ export async function patchProductStockStatus(
   code: string,
   stockStatus: boolean,
 ): Promise<boolean> {
+  return patchProductCatalogRow({ uuid, code, stockStatus })
+}
+
+/** Menü yönetimi — ürün satırı kısmi güncelleme (fiyat / KDV / üretim yeri vb.). */
+export async function patchProductCatalogRow(
+  row: Record<string, unknown>,
+): Promise<boolean> {
+  const uuid = str(row.uuid)
+  const code = str(row.code)
+  if (!uuid && !code) return false
   const res = await bossFetch('/api/products', {
     method: 'POST',
     body: JSON.stringify({
-      bulkProductPatches: [{ row: { uuid, code, stockStatus } }],
+      bulkProductPatches: [{ row }],
     }),
   })
   if (res.ok) {
@@ -237,6 +277,42 @@ export async function patchProductStockStatus(
     invalidateBossCache('fn:loadCatalogPage')
   }
   return res.ok
+}
+
+export type BossTaxRateOption = { id: string; label: string; rate: number }
+export type BossProductionAreaOption = { id: string; name: string }
+
+export async function loadBossTaxRates(): Promise<BossTaxRateOption[]> {
+  const res = await bossFetch<unknown>('/api/definitions/finance')
+  if (!res.ok || res.data == null) return []
+  const map = asMap(res.data)
+  const list = asList(map?.taxRates ?? map?.tax_rates ?? map?.items)
+  return list
+    .map((raw) => {
+      const row = asMap(raw) ?? {}
+      const id = str(row.id ?? row.taxRateId)
+      if (!id) return null
+      const rate = num(row.rate ?? row.percent)
+      const name = str(row.name ?? row.label, `%${rate}`)
+      const label = name.includes('%') ? name : `${name} (%${rate})`
+      return { id, label, rate }
+    })
+    .filter((x): x is BossTaxRateOption => x != null)
+}
+
+export async function loadBossProductionAreas(): Promise<BossProductionAreaOption[]> {
+  const res = await bossFetch<unknown>('/api/definitions/production-areas')
+  if (!res.ok || res.data == null) return []
+  const map = asMap(res.data)
+  const list = asList(map?.areas ?? map?.items ?? map?.rows ?? res.data)
+  return list
+    .map((raw) => {
+      const row = asMap(raw) ?? {}
+      const id = str(row.id ?? row.uuid)
+      if (!id) return null
+      return { id, name: str(row.name ?? row.title, 'Üretim yeri') }
+    })
+    .filter((x): x is BossProductionAreaOption => x != null)
 }
 
 // ── Personel ─────────────────────────────────────────────────────────────────
@@ -436,7 +512,7 @@ async function loadStokHubUncached(): Promise<StokHubData> {
           code,
           warehouseId: defaultWh,
           stock: qty,
-          unit: str(row.unitId ?? row.unit ?? 'adet', 'adet'),
+          unit: formatStockUnit(row.unitName ?? row.unitSymbol ?? row.unit ?? row.unitId),
           minStock: minStock || 1,
           status,
           lastMovement: '—',
@@ -612,7 +688,7 @@ export async function loadFirePage(): Promise<FirePageData> {
         id: str(row.id ?? i),
         name: str(row.itemName ?? row.name ?? row.title, 'Kalem'),
         qty: num(row.qty ?? row.quantity ?? Math.abs(num(row.signedQty))),
-        unit: str(row.unit ?? 'adet', 'adet'),
+          unit: formatStockUnit(row.unitName ?? row.unitSymbol ?? row.unit ?? row.unitId),
         warehouseId: str(row.warehouseId ?? hub.warehouses[0]?.id),
         reason: str(row.reason ?? row.note ?? row.typeLabel, 'Fire'),
         amount: `₺${formatMoneyTR(Math.abs(num(row.amount ?? row.cost ?? 0)))}`,

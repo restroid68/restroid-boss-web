@@ -233,7 +233,7 @@ export default function BossMPersonelPage() {
   const performansDisplay = performansRows.length ? performansRows : kadroRows
 
   return (
-    <main className="flex flex-col h-screen bg-background">
+    <main className="flex flex-col h-screen bg-transparent">
       {selected && (
         <DetailPanel person={selected} onClose={() => setSelected(null)} />
       )}

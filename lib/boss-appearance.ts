@@ -24,11 +24,13 @@ export const DEFAULT_APPEARANCE: BossAppearance = {
   themeAccent: 'blue',
 }
 
-/** html root font-size (px) — Tailwind rem ölçeğini sürükler */
+/** html root font-size (px) — Tailwind rem ölçeğini sürükler.
+ * Eski sm(14) kaldırıldı: sm=eski md, md=eski lg, lg=yeni daha büyük.
+ */
 export const FONT_SCALE_PX: Record<FontScale, number> = {
-  sm: 14,
-  md: 16,
-  lg: 18.5,
+  sm: 16,
+  md: 18.5,
+  lg: 21,
 }
 
 export const FONT_SCALE_OPTIONS: {

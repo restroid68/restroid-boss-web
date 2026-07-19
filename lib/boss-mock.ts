@@ -454,10 +454,18 @@ export interface MenuItem {
   id: string
   name: string
   category: string
-  price: number        // in kuruş-free ₺ integer
+  price: number
   active: boolean
   tukendi: boolean
   stock: number | null // null = no stock tracking
+  sku?: string
+  code?: string
+  priceByService?: boolean
+  servicePrices?: Record<string, { sale: string; original: string }>
+  taxRateId?: string
+  taxLabel?: string
+  productionByService?: boolean
+  productionAreasByService?: Record<string, string[]>
 }
 
 export const MENU_CATEGORIES = ['Tümü', 'Ana Yemek', 'Başlangıç', 'Salata', 'İçecek', 'Tatlı']

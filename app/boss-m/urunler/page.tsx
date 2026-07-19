@@ -170,7 +170,7 @@ export default function BossMUrunlerPage() {
   const emptyCount   = augmented.filter((p) => p._stock === 0).length
 
   return (
-    <main className="flex flex-col h-screen bg-background">
+    <main className="flex flex-col h-screen bg-transparent">
       {/* ── Header with inline search toggle ── */}
       <BossMPageHeader
         title="Ürün Stok"

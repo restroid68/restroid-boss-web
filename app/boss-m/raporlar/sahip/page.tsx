@@ -114,7 +114,7 @@ export default function BossMSahipRaporPage() {
     .map((r) => parseInt(r.karProxy.replace(/\D/g, ''), 10))
 
   return (
-    <main className="flex flex-col h-screen bg-background">
+    <main className="flex flex-col h-screen bg-transparent">
       <BossMPageHeader title="Sahip Raporu" showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
