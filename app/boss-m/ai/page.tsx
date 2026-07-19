@@ -397,11 +397,8 @@ export default function BossMaiPage() {
           const draft = api.productDraft ?? null
           const bulk = api.bulkDraft ?? null
           if (draft) setPendingDraft(draft)
-          else if (
-            api.intent &&
-            api.intent !== 'product_create' &&
-            api.intent !== 'product_update'
-          ) {
+          else {
+            // Yeni niyet (chat/bulk/analiz) veya boş taslak → ürün clarification tuzağını bırak
             setPendingDraft(null)
           }
           if (bulk) setPendingBulk(bulk)

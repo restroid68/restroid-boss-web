@@ -39,10 +39,11 @@ function ChannelRow({
         </p>
       </div>
 
-      <BossMSwitch
-        checked={channel.enabled}
+      {/* Toggle */}
+      <BossMToggle
+        enabled={channel.enabled}
         onChange={(v) => onToggle(channel.id, v)}
-        aria-label={channel.label}
+        accent={channel.enabled ? 'bg-primary' : 'bg-surface-3'}
       />
     </div>
   )

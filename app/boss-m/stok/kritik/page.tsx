@@ -241,7 +241,7 @@ function KritikPageInner() {
   }
 
   return (
-    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+    <main className="flex flex-col h-svh bg-background overflow-hidden">
       <BossMPageHeader
         title="Kritik Stok"
         showBack

@@ -191,7 +191,7 @@ export default function BossMStokPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+      <main className="flex flex-col h-svh bg-background overflow-hidden">
         <BossMPageHeader title="Stok" showBack />
         <StokSkeleton />
       </main>
@@ -199,7 +199,7 @@ export default function BossMStokPage() {
   }
 
   return (
-    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+    <main className="flex flex-col h-svh bg-background overflow-hidden">
       {/* ── Header ── */}
       <BossMPageHeader
         title="Stok"

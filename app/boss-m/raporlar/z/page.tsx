@@ -89,7 +89,7 @@ export default function BossMZRaporlarPage() {
   }, {})
 
   return (
-    <main className="flex flex-col h-screen bg-transparent">
+    <main className="flex flex-col h-screen bg-background">
       {selected && <ZDetailPanel report={selected} onClose={() => setSelected(null)} />}
 
       <BossMPageHeader title="Z Raporları" showBack />
