@@ -5,6 +5,7 @@
 
 export type BossAiCommandCategoryId =
   | 'summary'
+  | 'finance'
   | 'sales'
   | 'channel'
   | 'loss'
@@ -53,6 +54,52 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         id: 'yesterday-summary',
         label: 'Dünü özetle',
         prompt: 'Dünün satış, ciro ve iptal özetini ver.',
+      },
+    ],
+  },
+  {
+    id: 'finance',
+    title: 'Finans',
+    commands: [
+      {
+        id: 'finance-advice',
+        label: 'Finans tavsiyesi',
+        prompt:
+          'Tam finans özetine bakarak bugünkü durumu yorumla: riskleri söyle ve 2–4 somut aksiyon öner. Ham KPI tekrarlama.',
+        hint: 'Yorum + aksiyon',
+      },
+      {
+        id: 'finance-cost-check',
+        label: 'Maliyet kontrolü',
+        prompt:
+          'Food cost, prime cost ve marjı değerlendir; maliyet açısından dikkat edilmesi gerekenleri ve alım/kontrol aksiyonlarını söyle.',
+        hint: 'Food cost',
+      },
+      {
+        id: 'finance-consumption',
+        label: 'Tüketim uyarısı',
+        prompt:
+          'Bugünkü stok çıkışı / tüketim önceki günlerden yüksek mi? Yüksek kalemlerde hangi ürünlerin alımlarını kontrol etmemi öner.',
+        hint: 'Stok + alım',
+      },
+      {
+        id: 'finance-margin',
+        label: 'Kârlılık özeti',
+        prompt:
+          'Bu dönem kârlılık ve net sonrası yükü özetle; zayıf noktaları ve iyileştirme için kısa aksiyonlar ver.',
+      },
+      {
+        id: 'finance-expense-risk',
+        label: 'Gider riski',
+        prompt:
+          'Giderleri ciroya göre değerlendir; orantısız kalemleri ve bu hafta için 2–3 aksiyon öner.',
+      },
+      {
+        id: 'finance-week-actions',
+        label: 'Haftalık aksiyon',
+        prompt:
+          'Bu haftayı geçen haftayla karşılaştırıp finans açısından ne yapmam gerektiğini kısa aksiyon listesiyle söyle.',
+        hint: 'WoW + tavsiye',
       },
     ],
   },
@@ -280,6 +327,7 @@ export function findBossAiCommand(id: string): BossAiCommand | undefined {
 /** Varsayılan sık kullanılanlar (ilk açılış) */
 export const BOSS_AI_DEFAULT_FAVORITE_IDS = [
   'day-summary',
+  'finance-advice',
   'sales-today',
   'sales-wow',
   'cancellations',
