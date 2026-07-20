@@ -1,48 +1,41 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { postToNative } from '@/lib/boss-bridge'
+import { startBossKeyboardBridge } from '@/lib/boss-keyboard-bridge'
 
 /**
- * Soft keyboard görünürlüğü — SPA + Flutter alt nav.
- * html[data-keyboard="1"] ile layout alt boşluğu küçülür.
+ * Soft keyboard görünürlüğü — sayfa UI (composer sticky vb.).
+ * Native sinyal global bridge üzerinden gider (`BossBridgeBootstrap`).
  */
 export function useBossKeyboard() {
   const [keyboardOpen, setKeyboardOpen] = useState(false)
   const [keyboardInset, setKeyboardInset] = useState(0)
 
   useEffect(() => {
-    const vv = window.visualViewport
-    if (!vv) return
+    const stop = startBossKeyboardBridge()
 
-    let last = false
-    const sync = () => {
-      const overflow = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
-      const open = overflow > 80
-      setKeyboardInset(open ? overflow : 0)
-      if (open !== last) {
-        last = open
-        setKeyboardOpen(open)
-        document.documentElement.dataset.keyboard = open ? '1' : '0'
-        postToNative({ type: 'keyboard', open })
-      } else if (open) {
-        setKeyboardInset(overflow)
-      }
+    const read = () => {
+      const open = document.documentElement.dataset.keyboard === '1'
+      setKeyboardOpen(open)
+      const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue('--boss-keyboard-inset')
+        .trim()
+      const n = Number.parseFloat(raw)
+      setKeyboardInset(Number.isFinite(n) ? n : 0)
     }
 
-    vv.addEventListener('resize', sync)
-    vv.addEventListener('scroll', sync)
-    window.addEventListener('focusin', sync)
-    window.addEventListener('focusout', () => {
-      window.setTimeout(sync, 120)
+    read()
+    const mo = new MutationObserver(read)
+    mo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-keyboard', 'style'],
     })
-    sync()
+    window.visualViewport?.addEventListener('resize', read)
+
     return () => {
-      vv.removeEventListener('resize', sync)
-      vv.removeEventListener('scroll', sync)
-      window.removeEventListener('focusin', sync)
-      document.documentElement.dataset.keyboard = '0'
-      postToNative({ type: 'keyboard', open: false })
+      mo.disconnect()
+      window.visualViewport?.removeEventListener('resize', read)
+      stop()
     }
   }, [])
 

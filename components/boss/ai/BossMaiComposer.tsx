@@ -54,7 +54,7 @@ export function BossMaiComposer({
   const canSend = value.trim().length > 0 && !disabled
 
   return (
-    <div className="bg-background border-t border-border pb-safe">
+    <div className="bg-background border-t border-border pb-2">
       {/* Sık kullanılanlar + komut listesi */}
       <div className="flex gap-2 px-4 pt-3 pb-2 overflow-x-auto items-center">
         <button

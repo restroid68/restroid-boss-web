@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import {
@@ -233,7 +233,7 @@ export default function BossMPersonelPage() {
   const performansDisplay = performansRows.length ? performansRows : kadroRows
 
   return (
-    <main className="flex flex-col h-screen bg-transparent">
+    <main className="flex flex-col h-full bg-transparent">
       {selected && (
         <DetailPanel person={selected} onClose={() => setSelected(null)} />
       )}

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -74,7 +74,7 @@ function DetailPanel({
   onClose: () => void
 }) {
   return (
-    <div className="flex flex-col h-svh bg-transparent">
+    <div className="flex flex-col h-full bg-transparent">
       <header className="flex items-center gap-3 px-4 pt-4 pb-3">
         <button
           onClick={onClose}
@@ -241,7 +241,7 @@ function KritikPageInner() {
   }
 
   return (
-    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+    <main className="flex flex-col h-full bg-transparent overflow-hidden">
       <BossMPageHeader
         title="Kritik Stok"
         showBack

@@ -48,6 +48,7 @@ export function BossMaiCommandSheet({
       <BossMPageHeader
         title="Komut listesi"
         showBack={false}
+        syncNativeChrome={false}
         trailing={
           <button
             type="button"

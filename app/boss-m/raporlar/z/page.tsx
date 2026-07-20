@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { X, Printer, CreditCard, Banknote, Receipt, AlertTriangle } from 'lucide-react'
@@ -89,7 +89,7 @@ export default function BossMZRaporlarPage() {
   }, {})
 
   return (
-    <main className="flex flex-col h-screen bg-transparent">
+    <main className="flex flex-col h-full bg-transparent">
       {selected && <ZDetailPanel report={selected} onClose={() => setSelected(null)} />}
 
       <BossMPageHeader title="Z Raporları" showBack />

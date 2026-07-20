@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { Flame, Package, Warehouse, StickyNote, CalendarDays } from 'lucide-react'
@@ -96,7 +96,7 @@ export default function BossMStokFirePage() {
   const entries = data.byPeriod[period]
 
   return (
-    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+    <main className="flex flex-col h-full bg-transparent overflow-hidden">
       <BossMPageHeader title="Fire / Çıkışlar" showBack />
 
       <div className="flex gap-2 px-4 pb-4">

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useMemo, useEffect } from 'react'
 import {
@@ -170,7 +170,7 @@ export default function BossMUrunlerPage() {
   const emptyCount   = augmented.filter((p) => p._stock === 0).length
 
   return (
-    <main className="flex flex-col h-screen bg-transparent">
+    <main className="flex flex-col h-full bg-transparent">
       {/* ── Header with inline search toggle ── */}
       <BossMPageHeader
         title="Ürün Stok"

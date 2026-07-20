@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
@@ -14,6 +14,7 @@ import {
 } from '@/components/boss/ai/BossMaiInlineCards'
 import { AiChartsBlock } from '@/components/boss/ai/BossMaiAiCharts'
 import { useBossAiFavorites } from '@/hooks/use-boss-ai-favorites'
+import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import type { BossAiCommand } from '@/lib/boss-ai-commands'
 import { formatMoneyTR } from '@/lib/boss-api'
 import { cn } from '@/lib/utils'
@@ -271,6 +272,7 @@ export default function BossMaiPage() {
   ttsOnRef.current = ttsOn
 
   const { favorites, isFavorite, toggleFavorite, removeFavorite } = useBossAiFavorites()
+  const { keyboardOpen, keyboardInset } = useBossKeyboard()
 
   useEffect(() => {
     try {
@@ -466,7 +468,14 @@ export default function BossMaiPage() {
   }, [handleSend])
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-transparent">
+    <div
+      className="flex h-full flex-col overflow-hidden bg-transparent"
+      style={
+        keyboardOpen && keyboardInset > 0
+          ? { paddingBottom: Math.max(0, keyboardInset - 8) }
+          : undefined
+      }
+    >
       <BossMPageHeader
         title="Restroid AI"
         showBack

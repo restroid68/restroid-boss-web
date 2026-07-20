@@ -135,18 +135,18 @@ body::-webkit-scrollbar { display: none; }
   }
 }
 
-/* Flutter bottom nav yüksekliği — kaydet çubukları bunun üstünde */
+/* Flutter bottom nav + home indicator — içerik / sabit çubuklar bunun üstünde */
 :root {
-  --boss-native-nav-inset: 7.5rem;
+  --boss-native-nav-inset: calc(5.25rem + env(safe-area-inset-bottom, 0px) + 0.75rem);
 }
 
 /* Soft keyboard open: shrink SPA bottom padding (Flutter nav hidden) */
 html[data-keyboard='1'] .boss-native-scroll {
-  padding-bottom: 0.75rem !important;
+  padding-bottom: 0.5rem !important;
 }
 
 html[data-keyboard='1'] {
-  --boss-native-nav-inset: 0.75rem;
+  --boss-native-nav-inset: 0.5rem;
 }
 
 /* Sabit alt aksiyon (Kaydet vb.) — bottom nav üstünde */

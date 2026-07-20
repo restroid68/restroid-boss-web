@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -191,7 +191,7 @@ export default function BossMStokPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+      <main className="flex flex-col h-full bg-transparent overflow-hidden">
         <BossMPageHeader title="Stok" showBack />
         <StokSkeleton />
       </main>
@@ -199,7 +199,7 @@ export default function BossMStokPage() {
   }
 
   return (
-    <main className="flex flex-col h-svh bg-transparent overflow-hidden">
+    <main className="flex flex-col h-full bg-transparent overflow-hidden">
       {/* ── Header ── */}
       <BossMPageHeader
         title="Stok"

@@ -38,6 +38,8 @@ export type BossToNativeMessage =
   | { type: 'cacheClear' }
   /** Soft keyboard — Flutter alt nav gizle/göster */
   | { type: 'keyboard'; open: boolean }
+  /** SPA sayfa başlığı → Flutter app bar (title null = restoran adına dön) */
+  | { type: 'chrome'; title?: string | null; showBack?: boolean | null }
   | { type: 'setNotificationsEnabled'; enabled: boolean }
   | { type: 'getNotificationsEnabled' }
 

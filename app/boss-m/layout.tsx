@@ -25,9 +25,11 @@ export default function BossMLayout({
       <BossBridgeBootstrap />
       <BossLicenseGate>
         <BossShellNav />
-        {/* Flutter alt nav boşluğu; klavye açıkken (data-keyboard) küçülür */}
-        <div className="boss-native-scroll relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y pb-[var(--boss-native-nav-inset)]">
-          {children}
+        {/* Flutter alt nav boşluğu dışarıda; içerik h-full ile kabuğa sığar (h-svh taşması yok) */}
+        <div className="boss-native-scroll relative z-10 flex min-h-0 flex-1 flex-col pb-[var(--boss-native-nav-inset)]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain touch-pan-y">
+            {children}
+          </div>
         </div>
       </BossLicenseGate>
     </div>
