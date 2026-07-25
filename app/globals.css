@@ -157,3 +157,18 @@ html[data-keyboard='1'] {
   bottom: var(--boss-native-nav-inset);
   z-index: 30;
 }
+
+.boss-stack-enter {
+  animation: boss-stack-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes boss-stack-enter {
+  from {
+    transform: translateX(100%);
+    opacity: 0.92;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

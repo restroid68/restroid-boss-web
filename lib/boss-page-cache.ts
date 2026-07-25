@@ -31,6 +31,10 @@ const inflight = new Map<string, Promise<unknown>>()
 const loadingStack = new Set<string>()
 
 const L2_PREFIX = 'restroid_boss_pcache:'
+const L3_PREFIX = 'restroid_boss_pcache_persist:'
+
+/** WebView process öldüğünde sessionStorage kaybolur — localStorage yedek */
+const L3_TTL_MS = 24 * 60 * 60 * 1000
 
 export function bossCacheScope(): string {
   const s = readNativeSession()
@@ -41,10 +45,10 @@ function fullKey(logicalKey: string): string {
   return `${bossCacheScope()}::${logicalKey}`
 }
 
-function readL2(key: string): CacheEntry | null {
-  if (typeof sessionStorage === 'undefined') return null
+function readL3(key: string): CacheEntry | null {
+  if (typeof localStorage === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(L2_PREFIX + key)
+    const raw = localStorage.getItem(L3_PREFIX + key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as CacheEntry
     if (!parsed || typeof parsed.expiresAt !== 'number') return null
@@ -54,6 +58,29 @@ function readL2(key: string): CacheEntry | null {
   }
 }
 
+function writeL3(key: string, entry: CacheEntry): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(L3_PREFIX + key, JSON.stringify(entry))
+  } catch {
+    /* quota */
+  }
+}
+
+function readL2(key: string): CacheEntry | null {
+  if (typeof sessionStorage === 'undefined') return null
+  try {
+    const raw = sessionStorage.getItem(L2_PREFIX + key)
+    if (raw) {
+      const parsed = JSON.parse(raw) as CacheEntry
+      if (parsed && typeof parsed.expiresAt === 'number') return parsed
+    }
+  } catch {
+    /* ignore */
+  }
+  return readL3(key)
+}
+
 function writeL2(key: string, entry: CacheEntry): void {
   if (typeof sessionStorage === 'undefined') return
   try {
@@ -61,19 +88,33 @@ function writeL2(key: string, entry: CacheEntry): void {
   } catch {
     /* quota */
   }
+  writeL3(key, entry)
 }
 
 function removeL2ByPrefix(scopePrefix: string): void {
-  if (typeof sessionStorage === 'undefined') return
-  try {
-    const keys: string[] = []
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const k = sessionStorage.key(i)
-      if (k?.startsWith(L2_PREFIX + scopePrefix)) keys.push(k)
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const keys: string[] = []
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i)
+        if (k?.startsWith(L2_PREFIX + scopePrefix)) keys.push(k)
+      }
+      for (const k of keys) sessionStorage.removeItem(k)
+    } catch {
+      /* ignore */
     }
-    for (const k of keys) sessionStorage.removeItem(k)
-  } catch {
-    /* ignore */
+  }
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const keys: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k?.startsWith(L3_PREFIX + scopePrefix)) keys.push(k)
+      }
+      for (const k of keys) localStorage.removeItem(k)
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -83,19 +124,34 @@ export type PeekResult<T> = {
   stale: boolean
 }
 
-/** Senkron L1 (+ isteğe bağlı L2) okuma — SWR için. */
+/** Senkron L1 (+ L2/L3) okuma — SWR için. */
 export function peekBossCache<T>(logicalKey: string): PeekResult<T> | null {
   const key = fullKey(logicalKey)
   const now = Date.now()
   let entry = memory.get(key) ?? null
+  let persistOnly = false
   if (!entry) {
-    entry = readL2(key)
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        const raw = sessionStorage.getItem(L2_PREFIX + key)
+        if (raw) {
+          entry = JSON.parse(raw) as CacheEntry
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!entry) {
+      entry = readL3(key)
+      persistOnly = Boolean(entry)
+    }
     if (entry) memory.set(key, entry)
   }
   if (!entry) return null
   const fresh = now < entry.expiresAt
-  // Stale-while-revalidate: süresi dolmuş olsa da 10 dk’ya kadar göster
-  const maxStale = entry.expiresAt + 10 * 60_000
+  const maxStale = persistOnly
+    ? entry.fetchedAt + L3_TTL_MS
+    : entry.expiresAt + 10 * 60_000
   if (now > maxStale) {
     memory.delete(key)
     return null
@@ -152,6 +208,23 @@ export function invalidateBossCache(logicalKeyPrefix?: string): void {
       /* ignore */
     }
   }
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const keys: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (
+          k?.startsWith(L3_PREFIX + needle) ||
+          k === L3_PREFIX + `${scope}::${logicalKeyPrefix}`
+        ) {
+          keys.push(k)
+        }
+      }
+      for (const k of keys) localStorage.removeItem(k)
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /** Restoran / şube değişince veya logout. */
@@ -167,6 +240,18 @@ export function clearBossPageCache(all = false): void {
           if (k?.startsWith(L2_PREFIX)) keys.push(k)
         }
         for (const k of keys) sessionStorage.removeItem(k)
+      } catch {
+        /* ignore */
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const keys: string[] = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i)
+          if (k?.startsWith(L3_PREFIX)) keys.push(k)
+        }
+        for (const k of keys) localStorage.removeItem(k)
       } catch {
         /* ignore */
       }

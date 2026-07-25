@@ -1,6 +1,9 @@
 import BossAppearanceRoot from '@/components/boss/BossAppearanceRoot'
 import BossBridgeBootstrap from '@/components/boss/BossBridgeBootstrap'
 import BossLicenseGate from '@/components/boss/BossLicenseGate'
+import BossOfflineBanner from '@/components/boss/BossOfflineBanner'
+import BossRouteTransition from '@/components/boss/BossRouteTransition'
+import BossScrollShell from '@/components/boss/BossScrollShell'
 import BossShellNav from '@/components/boss/BossShellNav'
 
 export default function BossMLayout({
@@ -25,12 +28,10 @@ export default function BossMLayout({
       <BossBridgeBootstrap />
       <BossLicenseGate>
         <BossShellNav />
-        {/* Flutter alt nav boşluğu dışarıda; içerik h-full ile kabuğa sığar (h-svh taşması yok) */}
-        <div className="boss-native-scroll relative z-10 flex min-h-0 flex-1 flex-col pb-[var(--boss-native-nav-inset)]">
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain touch-pan-y">
-            {children}
-          </div>
-        </div>
+        <BossOfflineBanner />
+        <BossScrollShell>
+          <BossRouteTransition>{children}</BossRouteTransition>
+        </BossScrollShell>
       </BossLicenseGate>
     </div>
   )

@@ -34,6 +34,8 @@ export type BossToNativeMessage =
   /** SPA soft path sync → Flutter sekme / geri durumu */
   | { type: 'path'; path: string }
   | { type: 'ready' }
+  | { type: 'splash_dismiss' }
+  | { type: 'haptic'; style?: 'light' | 'medium' | 'heavy' | 'selection' }
   | { type: 'appearance'; fontScale: string; themeAccent: string }
   | { type: 'cacheClear' }
   /** Soft keyboard — Flutter alt nav gizle/göster */
@@ -132,6 +134,7 @@ export function postToNative(message: BossToNativeMessage): void {
 export function notifyNativeReady(): void {
   installGlobalFanout()
   postToNative({ type: 'ready' })
+  postToNative({ type: 'splash_dismiss' })
 }
 
 /** Flutter STT sonucu — AI composer dinler */

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Lock, RefreshCw } from 'lucide-react'
 import { bossFetch } from '@/lib/boss-api'
 import { onNativeSession, readNativeSession } from '@/lib/boss-bridge'
+import { peekBossCache, setBossCache, BOSS_TTL } from '@/lib/boss-page-cache'
 
 type LicenseStatus = {
   ok: boolean
@@ -14,12 +15,15 @@ type LicenseStatus = {
   superAdminBypass?: boolean
 }
 
+const LICENSE_CACHE_KEY = 'license-status'
+
 /**
  * Satış paneli lisansı (`RTK_MKT_MOD_SATIS`) yoksa Boss SPA'yı kilitler.
  */
 export default function BossLicenseGate({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<LicenseStatus | null>(null)
-  const [loading, setLoading] = useState(true)
+  const cached = peekBossCache<LicenseStatus>(LICENSE_CACHE_KEY)
+  const [status, setStatus] = useState<LicenseStatus | null>(cached?.data ?? null)
+  const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState<string | null>(null)
   const [hasSession, setHasSession] = useState(() => Boolean(readNativeSession()?.token))
 
@@ -33,16 +37,20 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
       return
     }
     setHasSession(true)
-    setLoading(true)
+    const peek = peekBossCache<LicenseStatus>(LICENSE_CACHE_KEY)
+    if (!peek?.fresh) setLoading(true)
     setError(null)
     const res = await bossFetch<LicenseStatus>('/api/boss/license-status')
     if (!res.ok || !res.data) {
-      setStatus(null)
-      setError(res.error || 'Lisans durumu okunamadı.')
+      if (!peek) {
+        setStatus(null)
+        setError(res.error || 'Lisans durumu okunamadı.')
+      }
       setLoading(false)
       return
     }
     setStatus(res.data)
+    setBossCache(LICENSE_CACHE_KEY, res.data, BOSS_TTL.definitions, { persist: true })
     setLoading(false)
   }, [])
 
@@ -53,7 +61,9 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
     })
   }, [load])
 
-  if (!hasSession || loading) {
+  const licenseOk = status?.ok || status?.superAdminBypass
+
+  if (!hasSession || (loading && !cached)) {
     return (
       <div className="relative z-10 flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-sm text-slate-300">
         <RefreshCw className="h-6 w-6 animate-spin opacity-70" aria-hidden />
@@ -79,7 +89,7 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
     )
   }
 
-  if (status && !status.ok && !status.superAdminBypass) {
+  if (status && !licenseOk) {
     return (
       <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-16 text-center">
         <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-500/35 bg-amber-500/[0.12] text-amber-200">

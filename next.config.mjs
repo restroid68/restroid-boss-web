@@ -6,6 +6,12 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    staleTimes: {
+      dynamic: 300,
+      static: 600,
+    },
+  },
   // /panel-api proxy → middleware.ts (Canlı / Test cookie)
 }
 
