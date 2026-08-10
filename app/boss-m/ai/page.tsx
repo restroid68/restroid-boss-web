@@ -252,7 +252,7 @@ const WELCOME: ChatMessage = {
   id: '1',
   role: 'assistant',
   time: makeTime(),
-  text: 'Merhaba. Alttan Komutlar ile hazır analiz seçebilir veya sık kullandıklarını yıldızlayabilirsin.',
+  text: 'Merhaba. Satış, gider, stok, kurye ve cari hesaplar hakkında soru sorabilirsin. Alttan Komutlar ile hazır analiz seçebilir veya sık kullandıklarını yıldızlayabilirsin.',
 }
 
 export default function BossMaiPage() {
@@ -263,6 +263,8 @@ export default function BossMaiPage() {
   const [pendingBulk, setPendingBulk] = useState<BossAiAskApiBulkDraft | null>(null)
   const [canUndoBulk, setCanUndoBulk] = useState(false)
   const [commandsOpen, setCommandsOpen] = useState(false)
+  /** Son yanıttan gelen takip soruları — chip olarak gösterilir */
+  const [suggestions, setSuggestions] = useState<string[]>([])
   /** Sesli okuma — varsayılan kapalı; hoparlör ile açılır */
   const [ttsOn, setTtsOn] = useState(false)
   const ttsOnRef = useRef(false)
@@ -296,7 +298,7 @@ export default function BossMaiPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, thinking])
+  }, [messages, thinking, suggestions])
 
   const appendAssistant = useCallback((text: string, card?: ReactNode) => {
     setMessages((prev) => [
@@ -381,6 +383,7 @@ export default function BossMaiPage() {
         text,
       }
       setMessages((prev) => [...prev, userMsg])
+      setSuggestions([])
       setThinking(true)
 
       try {
@@ -421,6 +424,10 @@ export default function BossMaiPage() {
             (label) => void handleSend(label),
           )
           appendAssistant(api.answer, card)
+          // Taslak onayı beklenirken öneri chip'i gösterme (onay/seçenek butonlarıyla çakışır)
+          if (!draft && !bulk && api.suggestions?.length) {
+            setSuggestions(api.suggestions.slice(0, 3))
+          }
           if (ttsOnRef.current) {
             const { postToNative } = await import('@/lib/boss-bridge')
             postToNative({ type: 'speak', text: api.answer })
@@ -511,6 +518,21 @@ export default function BossMaiPage() {
           {messages.map((msg) => (
             <BossMaiChatBubble key={msg.id} message={msg} />
           ))}
+
+          {!thinking && suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pl-9">
+              {suggestions.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => void handleSend(s)}
+                  className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-[12px] font-medium text-primary active:bg-primary/20"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
 
           {thinking && (
             <div className="flex items-center gap-2.5">

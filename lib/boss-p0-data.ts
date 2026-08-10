@@ -628,7 +628,8 @@ export type BossAiAskApiAnalysis = {
 }
 
 export type BossAiAskApiChart = {
-  type?: 'bar' | 'compare' | 'line'
+  /** rows: yatay etiket+tutar kırılım listesi */
+  type?: 'bar' | 'compare' | 'line' | 'rows'
   title?: string
   series?: Array<{ label: string; value: number }>
   seriesB?: Array<{ label: string; value: number }>
@@ -645,6 +646,8 @@ export type BossAiAskApiResult = {
   analysis?: BossAiAskApiAnalysis | null
   charts?: BossAiAskApiChart[]
   period?: { from?: string; to?: string; days?: number } | null
+  /** Yanıt sonrası önerilen takip soruları (chip olarak gösterilir). */
+  suggestions?: string[]
   error?: string
 }
 
@@ -670,6 +673,7 @@ export async function askBossAiApi(
     analysis?: BossAiAskApiAnalysis | null
     charts?: BossAiAskApiChart[]
     period?: { from?: string; to?: string; days?: number } | null
+    suggestions?: string[]
     error?: string
   }>('/api/boss/ai/ask', {
     method: 'POST',
@@ -701,6 +705,9 @@ export async function askBossAiApi(
     analysis: res.data.analysis ?? null,
     charts: Array.isArray(res.data.charts) ? res.data.charts : [],
     period: res.data.period ?? null,
+    suggestions: Array.isArray(res.data.suggestions)
+      ? res.data.suggestions.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      : [],
     error: res.data.error,
   }
 }

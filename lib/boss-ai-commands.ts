@@ -139,6 +139,11 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         prompt: 'Bugünkü misafir sayısı ve kişi başı ortalama ciroyu söyle.',
       },
       {
+        id: 'staff-sales',
+        label: 'Garson performansı',
+        prompt: 'Bu hafta garson ve kasiyer bazında satışları göster.',
+      },
+      {
         id: 'open-checks',
         label: 'Açık hesaplar',
         prompt: 'Açık adisyon / masa özetini ver: adet, toplam tutar ve en yüksekler.',
@@ -286,6 +291,22 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         prompt: 'Kritik veya bitmek üzere olan stok kalemlerini listele.',
       },
       {
+        id: 'stock-forecast',
+        label: 'Stok tahmini',
+        prompt: 'Stoklar ne kadar yeter? Ne sipariş etmem gerektiğini öner.',
+        hint: 'AI sipariş önerisi',
+      },
+      {
+        id: 'purchase-orders',
+        label: 'Tedarik siparişleri',
+        prompt: 'Açık satın alma siparişlerini ve yolda olanları özetle.',
+      },
+      {
+        id: 'courier-status',
+        label: 'Kurye durumu',
+        prompt: 'Kurye ve paket teslimat durumunu göster: yolda ne var, kim dağıtımda?',
+      },
+      {
         id: 'pending-orders',
         label: 'Bekleyen siparişler',
         prompt: 'Bekleyen online siparişleri durumlarıyla listele.',
@@ -294,6 +315,11 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         id: 'busy-hours',
         label: 'Yoğun saatler',
         prompt: 'Bu hafta en yoğun satış saatlerini veya günlerini özetle.',
+      },
+      {
+        id: 'reservations-today',
+        label: 'Rezervasyonlar',
+        prompt: 'Bugünkü ve yaklaşan rezervasyonları listele.',
       },
     ],
   },

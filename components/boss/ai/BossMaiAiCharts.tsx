@@ -153,6 +153,36 @@ export function AiLineSeriesChart({ title, series }: { title?: string; series: P
   )
 }
 
+export function AiRowsChart({ title, series }: { title?: string; series: Point[] }) {
+  const pts = series.slice(0, 12)
+  const peak = maxOf(pts)
+  return (
+    <div className="rounded-xl border border-border bg-surface-3 overflow-hidden">
+      <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
+        {title || 'Kırılım'}
+      </p>
+      <div className="px-3 py-2 space-y-1.5">
+        {pts.map((p, i) => {
+          const pct = Math.max(3, Math.round((Number(p.value) / peak) * 100))
+          return (
+            <div key={`${p.label}-${i}`} className="space-y-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-foreground truncate min-w-0">{p.label}</span>
+                <span className="text-[11px] font-semibold tabular-nums text-foreground shrink-0">
+                  {money(Number(p.value))}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted-foreground/15 overflow-hidden">
+                <div className="h-full rounded-full bg-primary/70" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function AiChartsBlock({ charts }: { charts: BossAiAskApiChart[] }) {
   if (!charts?.length) return null
   return (
@@ -181,6 +211,9 @@ export function AiChartsBlock({ charts }: { charts: BossAiAskApiChart[] }) {
         }
         if (c.type === 'line') {
           return <AiLineSeriesChart key={key} title={c.title} series={series} />
+        }
+        if (c.type === 'rows') {
+          return <AiRowsChart key={key} title={c.title} series={series} />
         }
         return <AiBarSeriesChart key={key} title={c.title} series={series} />
       })}
