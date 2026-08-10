@@ -23,7 +23,7 @@ export type BossNativeSession = {
 
 export type BossToNativeMessage =
   | { type: 'openMic' }
-  | { type: 'speak'; text: string }
+  | { type: 'speak'; text: string; voice?: 'device' | 'cloud' }
   | { type: 'speakStop' }
   | { type: 'switchRestaurant' }
   | { type: 'openDrawer' }

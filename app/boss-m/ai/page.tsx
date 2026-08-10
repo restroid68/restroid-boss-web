@@ -1,7 +1,8 @@
 ﻿'use client'
 
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
-import { Volume2, VolumeX } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Sparkles, Volume2, VolumeX, X } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMaiDailySummaryCard } from '@/components/boss/ai/BossMaiDailySummaryCard'
 import { BossMaiChatBubble } from '@/components/boss/ai/BossMaiChatBubble'
@@ -17,7 +18,7 @@ import { BossAiTokenChip } from '@/components/boss/ai/BossAiTokenChip'
 import { useBossAiFavorites } from '@/hooks/use-boss-ai-favorites'
 import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import type { BossAiCommand } from '@/lib/boss-ai-commands'
-import { formatMoneyTR } from '@/lib/boss-api'
+import { bossFetch, formatMoneyTR } from '@/lib/boss-api'
 import { cn } from '@/lib/utils'
 import type {
   BossAiAskApiAnalysis,
@@ -28,6 +29,9 @@ import type {
 } from '@/lib/boss-p0-data'
 
 const TTS_PREF_KEY = 'restroid_boss_ai_tts'
+
+/** Hoparlör durumu — her oturum kapalı başlar; açarken ses türü seçilir. */
+type BossTtsMode = 'off' | 'free' | 'premium'
 
 function makeTime() {
   const now = new Date()
@@ -266,36 +270,70 @@ export default function BossMaiPage() {
   const [commandsOpen, setCommandsOpen] = useState(false)
   /** Son yanıttan gelen takip soruları — chip olarak gösterilir */
   const [suggestions, setSuggestions] = useState<string[]>([])
-  /** Sesli okuma — varsayılan kapalı; hoparlör ile açılır */
-  const [ttsOn, setTtsOn] = useState(false)
-  const ttsOnRef = useRef(false)
+  /** Sesli okuma — her zaman kapalı başlar; açarken ücretsiz / gelişmiş ses seçilir */
+  const [ttsMode, setTtsMode] = useState<BossTtsMode>('off')
+  const ttsModeRef = useRef<BossTtsMode>('off')
+  const [voiceSheetOpen, setVoiceSheetOpen] = useState(false)
+  const [voiceSheetBusy, setVoiceSheetBusy] = useState(false)
+  /** Son seçilen ses türü — sheet'te vurgulanır */
+  const [preferredVoice, setPreferredVoice] = useState<'free' | 'premium'>('free')
+  const router = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
   messagesRef.current = messages
-  ttsOnRef.current = ttsOn
+  ttsModeRef.current = ttsMode
 
   const { favorites, isFavorite, toggleFavorite, removeFavorite } = useBossAiFavorites()
   const { keyboardOpen, keyboardInset } = useBossKeyboard()
 
   useEffect(() => {
+    // Hoparlör her oturumda kapalı başlar; yalnızca son ses tercihi hatırlanır.
     try {
-      setTtsOn(window.localStorage.getItem(TTS_PREF_KEY) === '1')
+      const stored = window.localStorage.getItem(TTS_PREF_KEY)
+      if (stored === 'premium' || stored === '1') setPreferredVoice('premium')
+      else setPreferredVoice('free')
     } catch {
       /* ignore */
     }
   }, [])
 
   const toggleTts = useCallback(async () => {
-    const next = !ttsOnRef.current
-    setTtsOn(next)
-    try {
-      window.localStorage.setItem(TTS_PREF_KEY, next ? '1' : '0')
-    } catch {
-      /* ignore */
+    if (ttsModeRef.current !== 'off') {
+      setTtsMode('off')
+      const { postToNative } = await import('@/lib/boss-bridge')
+      postToNative({ type: 'speakStop' })
+      return
     }
-    const { postToNative } = await import('@/lib/boss-bridge')
-    if (!next) postToNative({ type: 'speakStop' })
+    setVoiceSheetOpen(true)
   }, [])
+
+  const chooseVoice = useCallback(
+    async (mode: 'free' | 'premium') => {
+      if (mode === 'premium') {
+        // Gelişmiş ses token bakiyesinden düşer — bakiye yoksa önce yükleme sayfası.
+        setVoiceSheetBusy(true)
+        try {
+          const res = await bossFetch<{ balanceTokens?: number }>('/api/ai-tokens/summary')
+          if (res.ok && typeof res.data?.balanceTokens === 'number' && res.data.balanceTokens <= 0) {
+            setVoiceSheetOpen(false)
+            router.push('/boss-m/ai/tokenlar')
+            return
+          }
+        } finally {
+          setVoiceSheetBusy(false)
+        }
+      }
+      setTtsMode(mode)
+      setPreferredVoice(mode)
+      try {
+        window.localStorage.setItem(TTS_PREF_KEY, mode)
+      } catch {
+        /* ignore */
+      }
+      setVoiceSheetOpen(false)
+    },
+    [router],
+  )
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -429,9 +467,13 @@ export default function BossMaiPage() {
           if (!draft && !bulk && api.suggestions?.length) {
             setSuggestions(api.suggestions.slice(0, 3))
           }
-          if (ttsOnRef.current) {
+          if (ttsModeRef.current !== 'off') {
             const { postToNative } = await import('@/lib/boss-bridge')
-            postToNative({ type: 'speak', text: api.answer })
+            postToNative({
+              type: 'speak',
+              text: api.answer,
+              voice: ttsModeRef.current === 'free' ? 'device' : 'cloud',
+            })
           }
           return
         }
@@ -492,17 +534,27 @@ export default function BossMaiPage() {
             <button
               type="button"
               onClick={() => void toggleTts()}
-              aria-label={ttsOn ? 'Sesli okumayı kapat' : 'Sesli okumayı aç'}
-              aria-pressed={ttsOn}
-              title={ttsOn ? 'Ses açık' : 'Ses kapalı'}
+              aria-label={ttsMode !== 'off' ? 'Sesli okumayı kapat' : 'Sesli okumayı aç'}
+              aria-pressed={ttsMode !== 'off'}
+              title={
+                ttsMode === 'off'
+                  ? 'Ses kapalı'
+                  : ttsMode === 'free'
+                    ? 'Ücretsiz ses açık'
+                    : 'Gelişmiş ses açık'
+              }
               className={cn(
                 'flex h-11 w-11 items-center justify-center rounded-xl border transition-colors',
-                ttsOn
+                ttsMode !== 'off'
                   ? 'border-primary/40 bg-primary/15 text-primary'
                   : 'border-border bg-card/80 text-muted-foreground',
               )}
             >
-              {ttsOn ? <Volume2 size={20} strokeWidth={1.8} /> : <VolumeX size={20} strokeWidth={1.8} />}
+              {ttsMode !== 'off' ? (
+                <Volume2 size={20} strokeWidth={1.8} />
+              ) : (
+                <VolumeX size={20} strokeWidth={1.8} />
+              )}
             </button>
             <BossAiTokenChip />
             <span className="flex h-7 items-center gap-1.5 rounded-full border border-success/25 bg-success/15 px-2.5">
@@ -581,6 +633,76 @@ export default function BossMaiPage() {
           void handleSend(cmd.prompt)
         }}
       />
+
+      {voiceSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50"
+          onClick={() => setVoiceSheetOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-label="Sesli okuma türü"
+            className="rounded-t-2xl border-t border-border bg-background px-4 pt-4 pb-6 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">Sesli okuma</p>
+              <button
+                type="button"
+                onClick={() => setVoiceSheetOpen(false)}
+                aria-label="Kapat"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground active:bg-surface-2"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void chooseVoice('free')}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors',
+                preferredVoice === 'free'
+                  ? 'border-primary/40 bg-primary/10'
+                  : 'border-border bg-card/80 active:bg-surface-2',
+              )}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success">
+                <Volume2 size={18} strokeWidth={1.8} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground">Ücretsiz ses</span>
+                <span className="text-[12px] text-muted-foreground">
+                  Cihaz sesi, token harcamaz.
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void chooseVoice('premium')}
+              disabled={voiceSheetBusy}
+              className={cn(
+                'flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors',
+                preferredVoice === 'premium'
+                  ? 'border-primary/40 bg-primary/10'
+                  : 'border-border bg-card/80 active:bg-surface-2',
+                voiceSheetBusy && 'opacity-60',
+              )}
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Sparkles size={18} strokeWidth={1.8} />
+              </span>
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground">Gelişmiş ses</span>
+                <span className="text-[12px] text-muted-foreground">
+                  Doğal ses, token bakiyenden düşer.
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
