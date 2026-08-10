@@ -34,7 +34,7 @@ const ROUTE_GROUPS = [
       { href: '/boss-m/finans', label: 'Finans', sub: 'Ödeme dağılımı, hareketler', icon: TrendingUp, color: 'text-success bg-success/10' },
       { href: '/boss-m/kasa', label: 'Kasa & Banka', sub: 'Bakiye, giriş/çıkış, defteri', icon: Wallet, color: 'text-info    bg-info/10' },
       { href: '/boss-m/denetim', label: 'Denetim', sub: 'Canlı uyarılar, filtreler', icon: ShieldAlert, color: 'text-danger  bg-danger/10' },
-      { href: '/boss-m/raporlar', label: 'Raporlar', sub: 'Ürün, personel, şube raporları', icon: BarChart2, color: 'text-warning bg-warning/10' },
+      { href: '/boss-m/raporlar', label: 'Raporlar', sub: 'Ürün, personel, işletme raporları', icon: BarChart2, color: 'text-warning bg-warning/10' },
     ],
   },
   {

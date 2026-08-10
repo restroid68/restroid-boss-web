@@ -27,6 +27,7 @@ import {
   todayYmd,
 } from '@/lib/boss-api'
 import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
+import { bossBranchDisplayLabel } from '@/lib/boss-branch-display'
 import { readNativeSession } from '@/lib/boss-bridge'
 import {
   labelOpAction,
@@ -163,11 +164,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback: AnaDashboardData = {
     restaurantName: session?.restaurantName || 'Restroid',
-    branchLabel: (() => {
-      const c = String(session?.branchCode ?? '').trim()
-      if (!c || c.toUpperCase() === 'HQ') return ''
-      return c
-    })(),
+    branchLabel: bossBranchDisplayLabel(session?.branchCode),
     kpis: ANA_KPIS,
     channels: CHANNEL_CARDS,
     alerts: DIKKAT_ALERTS,
@@ -304,11 +301,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
 
   return {
     restaurantName: session.restaurantName || fallback.restaurantName,
-    branchLabel: (() => {
-      const c = String(session.branchCode ?? '').trim()
-      if (!c || c.toUpperCase() === 'HQ') return ''
-      return c
-    })(),
+    branchLabel: bossBranchDisplayLabel(session.branchCode),
     kpis,
     channels,
     alerts,

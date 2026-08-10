@@ -1,6 +1,6 @@
 /**
  * Boss UI: teknik `HQ` şube kodunu son kullanıcıya gösterme.
- * Tek lokasyon (kod HQ / boş) → boş etiket (rozet gizlenir).
+ * Tek lokasyon (kod HQ / boş) → boş etiket (rozet gizlenir; başlıkta zaten restoran adı var).
  * Merkezi yönetim + HQ → «Merkez».
  */
 export function bossBranchDisplayLabel(
