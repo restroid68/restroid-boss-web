@@ -1331,30 +1331,11 @@ export type RaporlarPageData = {
   source: 'api' | 'mock'
 }
 
-export async function loadRaporlarPage(): Promise<RaporlarPageData> {
-  const session = readNativeSession()
-  if (!session?.token) {
-    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
-  }
-
-  const sales = await fetchSalesAnalysisTodayFull()
-
-  if (!sales.ok || !sales.data) {
-    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
-  }
-
-  const products = asList(
-    sales.data.topProducts ?? sales.data.products ?? asMap(sales.data.summary)?.topProducts,
-  )
-
-  if (!products.length) {
-    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
-  }
-
-  const rows: ProductRow[] = products.slice(0, 20).map((r, i) => {
+function mapTopProductRows(list: unknown[]): ProductRow[] {
+  return list.slice(0, 20).map((r, i) => {
     const row = asMap(r) ?? {}
     const qty = num(row.qty ?? row.quantity ?? row.count)
-    const revenue = num(row.revenue ?? row.amount ?? row.total)
+    const revenue = num(row.amount ?? row.revenue ?? row.total)
     return {
       rank: i + 1,
       name: str(row.name ?? row.productName ?? row.title, `Ürün ${i + 1}`),
@@ -1363,12 +1344,44 @@ export async function loadRaporlarPage(): Promise<RaporlarPageData> {
       trend: 'flat' as const,
     }
   })
+}
+
+export async function loadRaporlarPage(): Promise<RaporlarPageData> {
+  const session = readNativeSession()
+  if (!session?.token) {
+    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
+  }
+
+  const fetchWindow = (days: number) =>
+    withBossCache(
+      `api:sales-analysis:full:${days}g`,
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
+          query: { days: String(days), part: 'full' },
+        }),
+      { isCacheable: (r) => Boolean(r.ok && r.data) },
+    )
+
+  const [today, week, month] = await Promise.all([
+    fetchSalesAnalysisTodayFull(),
+    fetchWindow(7),
+    fetchWindow(30),
+  ])
+
+  if (!today.ok && !week.ok && !month.ok) {
+    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
+  }
+
+  // Oturum + API varken örnek ürün raporu gösterme — boş liste doğru durum.
+  const rowsFor = (res: { data: Record<string, unknown> | null }) =>
+    mapTopProductRows(asList(asMap(res.data)?.topProducts))
 
   return {
     productByPeriod: {
-      Bugün: rows,
-      '7 Gün': rows,
-      '30 Gün': rows,
+      Bugün: rowsFor(today),
+      '7 Gün': rowsFor(week),
+      '30 Gün': rowsFor(month),
     },
     source: 'api',
   }
@@ -1390,13 +1403,29 @@ export async function loadSahipPage(): Promise<SahipPageData> {
   })
   if (!res.ok || !res.data) return { months: SAHIP_RAPORLAR, source: 'mock' }
 
+  // Cloud FinanceOwnerOverview: sales.summary + periodInsight + payrollByType
   const d = res.data
-  const summary = asMap(d.summary) ?? asMap(d.totals) ?? d
-  const ciro = num(summary.revenue ?? summary.totalRevenue ?? summary.ciro ?? d.revenue)
-  const maliyet = num(summary.cost ?? summary.cogs ?? summary.maliyet)
-  const personel = num(summary.payroll ?? summary.personnelCost ?? summary.personelGider)
-  const kar = ciro - maliyet - personel
-  const ratio = ciro > 0 ? `${((maliyet / ciro) * 100).toFixed(1)}%` : '—'
+  const sales = asMap(d.sales) ?? {}
+  const summary = asMap(sales.summary) ?? {}
+  const insight = asMap(d.periodInsight) ?? {}
+  const ciro = num(summary.netSales ?? summary.closedNetSales)
+  const maliyet = num(insight.approxStockIssueCost)
+  let personel = 0
+  for (const raw of asList(d.payrollByType)) {
+    personel += Math.abs(num(asMap(raw)?.amount))
+  }
+  const karRaw = insight.simplifiedNetAfterLoad
+  const kar =
+    karRaw != null && Number.isFinite(Number(karRaw))
+      ? Number(karRaw)
+      : ciro - Math.abs(num(summary.expenses)) - Math.abs(num(summary.waste)) - personel
+  const foodPct = insight.foodCostProxyPct
+  const ratio =
+    foodPct != null && Number.isFinite(Number(foodPct))
+      ? `${Number(foodPct).toFixed(1)}%`
+      : ciro > 0 && maliyet > 0
+        ? `${((maliyet / ciro) * 100).toFixed(1)}%`
+        : '—'
 
   const now = new Date()
   const monthLabel = now.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })
@@ -1406,15 +1435,12 @@ export async function loadSahipPage(): Promise<SahipPageData> {
     maliyet: `₺${formatMoneyTR(maliyet)}`,
     karProxy: `₺${formatMoneyTR(kar)}`,
     personelGider: `₺${formatMoneyTR(personel)}`,
-    ciroDelta: str(summary.revenueDelta ?? summary.ciroDelta, '—'),
+    ciroDelta: '—',
     maliyetRatio: ratio,
   }
 
-  // Prefer keeping mock history behind current month when API only returns one period
-  return {
-    months: [current, ...SAHIP_RAPORLAR.filter((m) => m.month !== current.month)],
-    source: 'api',
-  }
+  // API varken örnek geçmiş aylar gösterilmez — yalnızca gerçek dönem.
+  return { months: [current], source: 'api' }
 }
 
 export type ZPageData = {
@@ -1426,90 +1452,32 @@ export async function loadZReportsPage(): Promise<ZPageData> {
   const session = readNativeSession()
   if (!session?.token) return { reports: Z_REPORTS, source: 'mock' }
 
-  const templates = await bossFetch<{ items?: unknown[]; templates?: unknown[]; rows?: unknown[] }>(
-    '/api/finance/pos-order-report-templates',
-  )
-  const list = asList(templates.data?.items ?? templates.data?.templates ?? templates.data?.rows)
-  const zTpl = list.find((t) => {
-    const row = asMap(t) ?? {}
-    const name = str(row.name ?? row.title ?? row.code).toLowerCase()
-    return name.includes('z ') || name === 'z' || name.includes('z-rapor') || name.includes('z rapor')
+  // Gerçek Z arşivi: köprünün fiscal.z_report olayları (TenantFiscalZReportReadModel).
+  const res = await bossFetch<{ items?: unknown[] }>('/api/finance/z-reports', {
+    query: { page: '1', pageSize: '30' },
   })
+  if (!res.ok || !res.data) return { reports: Z_REPORTS, source: 'mock' }
 
-  if (!zTpl) {
-    // Fallback: paylaşılan sales-analysis L1 cache
-    const day = todayYmd()
-    const sales = await fetchSalesAnalysisTodayFull()
-    if (!sales.ok || !sales.data) return { reports: Z_REPORTS, source: 'mock' }
-    const summary = asMap(sales.data.summary) ?? sales.data
-    const total = num(
-      summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue ?? summary.revenue,
-    )
-    const payments = asMap(sales.data.payments) ?? {}
-    const nakit = num(payments.Nakit ?? payments.cash ?? payments.nakit)
-    const kart = num(payments.Kart ?? payments.card ?? payments.kredi)
-    const today: ZReport = {
-      id: 'today',
-      zNo: `Z-${day.replace(/-/g, '').slice(4)}`,
-      terminal: 'Günlük özet',
-      total: `₺${formatMoneyTR(total)}`,
-      nakit: `₺${formatMoneyTR(nakit)}`,
-      kart: `₺${formatMoneyTR(kart)}`,
-      time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-      date: fmtDateShort(day),
-      receiptCount: num(summary.orderCount ?? summary.receiptCount),
-      cancelTotal: `₺${formatMoneyTR(num(summary.cancelAmount ?? summary.cancelTotal))}`,
-    }
-    return { reports: [today, ...Z_REPORTS], source: 'api' }
-  }
-
-  const tplId = str(asMap(zTpl)?.id ?? asMap(zTpl)?.templateId)
-  const day = todayYmd()
-  const run = await bossFetch<Record<string, unknown>>(
-    `/api/finance/pos-order-report-templates/${encodeURIComponent(tplId)}/run`,
-    { query: { from: day, to: day } },
-  )
-  if (!run.ok || !run.data) return { reports: Z_REPORTS, source: 'mock' }
-
-  const rows = asList(run.data.rows ?? run.data.items ?? run.data.days)
-  if (!rows.length) {
-    const summary = asMap(run.data.summary) ?? run.data
-    const total = num(summary.totalRevenue ?? summary.grandTotal ?? summary.total)
-    return {
-      reports: [
-        {
-          id: 'run-0',
-          zNo: str(summary.zNo ?? `Z-${day.slice(5)}`),
-          terminal: str(summary.terminal ?? 'Kasa'),
-          total: `₺${formatMoneyTR(total)}`,
-          nakit: `₺${formatMoneyTR(num(summary.cash ?? summary.nakit))}`,
-          kart: `₺${formatMoneyTR(num(summary.card ?? summary.kart))}`,
-          time: str(summary.closedAt ?? '').slice(11, 16) || '--:--',
-          date: fmtDateShort(day),
-          receiptCount: num(summary.receiptCount ?? summary.count),
-          cancelTotal: `₺${formatMoneyTR(num(summary.cancelTotal))}`,
-        },
-        ...Z_REPORTS,
-      ],
-      source: 'api',
-    }
-  }
-
-  const reports: ZReport[] = rows.slice(0, 30).map((r, i) => {
+  const rows = asList(res.data.items)
+  const reports: ZReport[] = rows.map((r, i) => {
     const row = asMap(r) ?? {}
+    const reportAt = str(row.reportAt ?? row.occurredAt)
+    const zNo = num(row.localZReportId)
     return {
       id: str(row.id ?? i),
-      zNo: str(row.zNo ?? row.code ?? `Z-${i + 1}`),
-      terminal: str(row.terminal ?? row.deviceName ?? 'Kasa'),
-      total: `₺${formatMoneyTR(num(row.total ?? row.grandTotal ?? row.revenue))}`,
-      nakit: `₺${formatMoneyTR(num(row.cash ?? row.nakit))}`,
-      kart: `₺${formatMoneyTR(num(row.card ?? row.kart))}`,
-      time: str(row.time ?? row.closedAt ?? '').slice(11, 16) || '--:--',
-      date: fmtDateShort(row.date ?? row.closedAt ?? row.day),
-      receiptCount: num(row.receiptCount ?? row.count),
-      cancelTotal: `₺${formatMoneyTR(num(row.cancelTotal ?? row.cancelAmount))}`,
+      zNo: zNo > 0 ? `Z-${zNo}` : str(row.sourceEventId, `Z-${i + 1}`).slice(0, 12),
+      terminal: str(row.cashRegisterLabels, 'Kasa'),
+      total: `₺${formatMoneyTR(num(row.totalSales ?? row.productAmount))}`,
+      // Liste API'sinde ödeme kırılımı yok — örnek rakam basma.
+      nakit: '—',
+      kart: '—',
+      time: reportAt.slice(11, 16) || '--:--',
+      date: fmtDateShort(reportAt),
+      receiptCount: 0,
+      cancelTotal: `₺${formatMoneyTR(num(row.productCanceledAmount))}`,
     }
   })
 
-  return { reports: reports.length ? reports : Z_REPORTS, source: 'api' }
+  // Oturum + API varken örnek Z listesi gösterme — boş liste doğru durum.
+  return { reports, source: 'api' }
 }

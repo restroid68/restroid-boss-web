@@ -79,7 +79,8 @@ export default function BossMZRaporlarPage() {
     source: 'mock',
   })
   const [selected, setSelected] = useState<ZReport | null>(null)
-  const list = data.reports.length ? data.reports : Z_REPORTS
+  // API kaynağında boş liste gerçek durumdur; örnek veriye düşme yalnızca demo (mock) modunda.
+  const list = data.source === 'api' ? data.reports : data.reports.length ? data.reports : Z_REPORTS
 
   // Group by date
   const grouped = list.reduce<Record<string, ZReport[]>>((acc, r) => {
@@ -101,6 +102,9 @@ export default function BossMZRaporlarPage() {
               <div key={i} className="h-16 bg-surface-2 rounded-2xl" />
             ))}
           </div>
+        )}
+        {!loading && list.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-10">Henüz Z raporu yok.</p>
         )}
         {Object.entries(grouped).map(([date, reports]) => (
           <section key={date} className="mb-5">

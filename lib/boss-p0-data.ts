@@ -72,7 +72,10 @@ function asMap(v: unknown): Record<string, unknown> | null {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null
 }
 
-/** Panel `serviceTypeBreakdown` — Flutter BossDashboardData ile aynı id’ler */
+/**
+ * Panel `serviceTypeBreakdown` — cloud `service-channel-registry` id’leri:
+ * 1=Masa, 2=Paket, 3=Gel Al, 4=Self, 5=Oda, 6=QR Menü, 7+=Online platform.
+ */
 function serviceAmt(breakdown: unknown, id: number): number {
   if (!Array.isArray(breakdown)) return 0
   for (const e of breakdown) {
@@ -80,6 +83,17 @@ function serviceAmt(breakdown: unknown, id: number): number {
     if (row && num(row.serviceTypeId) === id) return num(row.amount)
   }
   return 0
+}
+
+/** Online platform siparişleri — cloud sentetik kova(lar) `serviceTypeId >= 7`. */
+function serviceAmtOnline(breakdown: unknown): number {
+  if (!Array.isArray(breakdown)) return 0
+  let sum = 0
+  for (const e of breakdown) {
+    const row = asMap(e)
+    if (row && num(row.serviceTypeId) >= 7) sum += num(row.amount)
+  }
+  return sum
 }
 
 /** Düz string; nesne/JSON asla UI’ye yazılmaz. */
@@ -182,7 +196,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
       'api:active-orders',
       BOSS_TTL.live,
       () =>
-        bossFetch<{ items?: unknown[]; orders?: unknown[]; count?: number }>(
+        bossFetch<{ rows?: unknown[]; items?: unknown[]; orders?: unknown[]; count?: number }>(
           '/api/sales/active-orders',
         ),
       { isCacheable: (r) => r.ok },
@@ -220,11 +234,14 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   ]
 
   const st = d.serviceTypeBreakdown
-  const activeItems = Array.isArray(active.data?.items)
-    ? active.data!.items!
-    : Array.isArray(active.data?.orders)
-      ? active.data!.orders!
-      : []
+  // Cloud yanıtı `{ rows }` döner (app/api/sales/active-orders/route.ts).
+  const activeItems = Array.isArray(active.data?.rows)
+    ? active.data!.rows!
+    : Array.isArray(active.data?.items)
+      ? active.data!.items!
+      : Array.isArray(active.data?.orders)
+        ? active.data!.orders!
+        : []
   const openTables = active.data?.count ?? activeItems.length
 
   const channels: ChannelCard[] = [
@@ -237,13 +254,13 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     {
       key: 'online',
       label: 'Online',
-      value: `₺${formatMoneyTR(serviceAmt(st, 5) + serviceAmt(st, 7))}`,
+      value: `₺${formatMoneyTR(serviceAmtOnline(st))}`,
       variant: 'neutral',
     },
     {
       key: 'paket',
       label: 'Paket',
-      value: `₺${formatMoneyTR(serviceAmt(st, 1))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 2))}`,
       variant: 'neutral',
     },
     {
@@ -255,7 +272,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     {
       key: 'self',
       label: 'Self',
-      value: `₺${formatMoneyTR(serviceAmt(st, 2))}`,
+      value: `₺${formatMoneyTR(serviceAmt(st, 4))}`,
       variant: 'neutral',
     },
     {
