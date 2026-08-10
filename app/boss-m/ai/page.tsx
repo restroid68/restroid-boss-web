@@ -13,6 +13,7 @@ import {
   AiAlertBanner,
 } from '@/components/boss/ai/BossMaiInlineCards'
 import { AiChartsBlock } from '@/components/boss/ai/BossMaiAiCharts'
+import { BossAiTokenChip } from '@/components/boss/ai/BossAiTokenChip'
 import { useBossAiFavorites } from '@/hooks/use-boss-ai-favorites'
 import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import type { BossAiCommand } from '@/lib/boss-ai-commands'
@@ -503,6 +504,7 @@ export default function BossMaiPage() {
             >
               {ttsOn ? <Volume2 size={20} strokeWidth={1.8} /> : <VolumeX size={20} strokeWidth={1.8} />}
             </button>
+            <BossAiTokenChip />
             <span className="flex h-7 items-center gap-1.5 rounded-full border border-success/25 bg-success/15 px-2.5">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-success" />
               <span className="text-[11px] font-medium text-success">Aktif</span>
