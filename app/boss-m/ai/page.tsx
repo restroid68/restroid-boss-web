@@ -636,7 +636,7 @@ export default function BossMaiPage() {
 
       {voiceSheetOpen && (
         <div
-          className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50"
+          className="boss-over-native-nav flex flex-col justify-end bg-black/50"
           onClick={() => setVoiceSheetOpen(false)}
         >
           <div

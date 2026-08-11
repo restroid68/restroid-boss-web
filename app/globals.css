@@ -158,6 +158,16 @@ html[data-keyboard='1'] {
   z-index: 30;
 }
 
+/* Modal / bottom sheet overlay — Flutter bottom nav’ın altında kalmasın */
+.boss-over-native-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: var(--boss-native-nav-inset);
+  z-index: 50;
+}
+
 .boss-stack-enter {
   animation: boss-stack-enter 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }

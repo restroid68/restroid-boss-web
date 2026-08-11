@@ -44,7 +44,7 @@ export function BossMaiCommandSheet({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="boss-over-native-nav flex flex-col bg-background">
       <BossMPageHeader
         title="Komut listesi"
         showBack={false}
