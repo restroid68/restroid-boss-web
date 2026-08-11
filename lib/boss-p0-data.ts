@@ -494,6 +494,28 @@ export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   }
 }
 
+/** Cloud `accounting_transaction.type` enum → TR etiket (boss UI). */
+function accountingTypeLabelTR(type: string): string {
+  const map: Record<string, string> = {
+    POS_SALE: 'POS Satış',
+    CASH_IN: 'Para Girişi',
+    CASH_OUT: 'Para Çıkışı',
+    EXPENSE: 'Gider',
+    TRANSFER_OUT: 'Transfer (Çıkan)',
+    TRANSFER_IN: 'Transfer (Gelen)',
+    CUSTOMER_PAYMENT: 'Müşteri Ödeme',
+    CUSTOMER_COLLECTION: 'Müşteri Tahsilat',
+    SUPPLIER_PAYMENT: 'Tedarikçi Ödeme',
+    SUPPLIER_COLLECTION: 'Tedarikçi Tahsilat',
+    PERSONNEL_COLLECTION: 'Personel Tahsilat',
+    SALARY_PAYMENT: 'Maaş Ödemesi',
+    SALARY_ACCRUAL: 'Maaş Tahakkuku',
+    BONUS_PAYMENT: 'Prim Ödemesi',
+    ADVANCE_PAYMENT: 'Avans',
+  }
+  return map[type] ?? (type || 'Hareket')
+}
+
 export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   const session = readNativeSession()
   const fallback: KasaDashboardData = {
@@ -504,7 +526,6 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   if (!session?.token) return fallback
 
   try {
-  const day = todayYmd()
   const [meta, tx] = await Promise.all([
     withBossCache(
       'api:accounting-meta',
@@ -513,12 +534,13 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
       { persist: true, isCacheable: (r) => r.ok },
     ),
     withBossCache(
-      'api:accounting-tx:today:30',
+      'api:accounting-tx:recent:30',
       BOSS_TTL.kpi,
       () =>
+        // Son 30 hareket (gün filtresi yok) — gece yarısı sonrası boş ekran olmasın
         bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
           '/api/accounting/transactions',
-          { query: { page: '1', pageSize: '30', from: day, to: day } },
+          { query: { page: '1', pageSize: '30' } },
         ),
       { isCacheable: (r) => r.ok },
     ),
@@ -558,14 +580,19 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
     const row = asMap(raw) ?? {}
     const amount = num(row.amount ?? row.signedAmount)
     const positive = amount >= 0
-    const created = String(row.createdAt ?? '')
+    // Cloud accounting_transaction satırı: occurredAt + description + type (enum)
+    const when = String(row.occurredAt ?? row.createdAt ?? '')
+    const typeLabel = accountingTypeLabelTR(String(row.type ?? ''))
+    const account = asMap(row.account)
+    const accountName = account ? String(account.name ?? '') : ''
+    const descr = String(row.description ?? '').trim() || typeLabel
     return {
       id: String(row.id ?? i),
-      datetime: created ? created.slice(0, 16).replace('T', ' ') : '—',
-      description: String(row.title ?? row.typeLabel ?? row.type ?? 'Hareket'),
+      datetime: when ? when.slice(0, 16).replace('T', ' ') : '—',
+      description: accountName ? `${descr} — ${accountName}` : descr,
       amount: `${positive ? '+' : '-'}₺${formatMoneyTR(Math.abs(amount))}`,
       sign: positive ? 'positive' : 'negative',
-      category: String(row.typeLabel ?? row.type ?? 'Hareket'),
+      category: typeLabel,
     }
   })
 
