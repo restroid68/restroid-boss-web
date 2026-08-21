@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { Plus, ClipboardList, ClipboardCheck, User, CalendarDays } from 'lucide-react'
