@@ -5,15 +5,19 @@ import { BossMPaymentDonut } from '@/components/boss/finans/BossMPaymentDonut'
 import { BossMQuickTiles } from '@/components/boss/finans/BossMQuickTiles'
 import { BossMMovementList } from '@/components/boss/finans/BossMMovementList'
 import { BossMSkeletonCard, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { FINANS_TILES, PAYMENT_MIX, RECENT_MOVEMENTS } from '@/lib/boss-mock'
 import { loadFinansDashboard, type FinansDashboardData } from '@/lib/boss-p0-data'
 import { useBossLoad } from '@/hooks/use-boss-load'
 
 const FINANS_FALLBACK: FinansDashboardData = {
-  paymentMix: PAYMENT_MIX,
-  totalLabel: '₺24.860',
-  tiles: FINANS_TILES,
-  movements: RECENT_MOVEMENTS,
+  paymentMix: [],
+  totalLabel: '₺0',
+  tiles: [
+    { label: 'Açık Hesaplar', value: '₺0', sub: 'bugün', variant: 'warning' },
+    { label: 'Giderler', value: '₺0', sub: 'bugün', variant: 'danger' },
+    { label: 'Tahsilatlar', value: '₺0', sub: 'bugün', variant: 'success' },
+    { label: 'Zayi / İptal', value: '₺0', sub: 'bugün', variant: 'neutral' },
+  ],
+  movements: [],
   source: 'mock',
 }
 

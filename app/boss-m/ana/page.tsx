@@ -5,7 +5,7 @@ import { BossMChannelGrid } from '@/components/boss/ana/BossMChannelGrid'
 import { BossMDikkatList } from '@/components/boss/ana/BossMDikkatList'
 import { BossMOperasyonChipsRow } from '@/components/boss/ana/BossMOperasyonChips'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { ANA_KPIS, CHANNEL_CARDS, DIKKAT_ALERTS, STOK_KPI } from '@/lib/boss-mock'
+import { CHANNEL_CARDS } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { postToNative, readNativeSession } from '@/lib/boss-bridge'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -14,10 +14,15 @@ import { Store, ChevronDown } from 'lucide-react'
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
   branchLabel: '',
-  kpis: ANA_KPIS,
-  channels: CHANNEL_CARDS,
-  alerts: DIKKAT_ALERTS,
-  operasyonBadges: { stok: STOK_KPI.kritikAdet },
+  kpis: [
+    { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺' },
+    { label: 'Ödenen', value: '0', delta: 0, unit: '₺' },
+    { label: 'Açık', value: '0', delta: 0, unit: '₺' },
+    { label: 'Konuk', value: '0', delta: 0, unit: '' },
+  ],
+  channels: CHANNEL_CARDS.map((c) => ({ ...c, value: c.key === 'masa' ? '0' : '₺0' })),
+  alerts: [],
+  operasyonBadges: {},
   source: 'mock',
 }
 

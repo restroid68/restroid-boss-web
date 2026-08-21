@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Search, X, ChevronRight, Eye, EyeOff, Filter, FilterX } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { MENU_ITEMS, MENU_CATEGORIES } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadCatalogPage } from '@/lib/boss-page-data'
 import { BossMMoneyText } from '@/components/boss/BossMMoneyText'
@@ -17,10 +16,10 @@ type StatusFilter = 'all' | 'active' | 'passive' | 'depleted'
 export default function BossMMenuPage() {
   const router = useRouter()
   const { data, loading } = useBossLoad(loadCatalogPage, {
-    items: MENU_ITEMS,
-    categories: MENU_CATEGORIES,
+    items: [],
+    categories: ['Tümü'],
     products: [],
-    productCategories: MENU_CATEGORIES,
+    productCategories: ['Tümü'],
     source: 'mock',
   })
   const items = data.items
@@ -232,8 +231,12 @@ export default function BossMMenuPage() {
         ) : filtered.length === 0 ? (
           <BossMEmptyState
             icon={Search}
-            title="Ürün bulunamadı"
-            description="Arama veya filtre kriterlerinizi değiştirin."
+            title={items.length === 0 ? 'Menüde ürün yok' : 'Ürün bulunamadı'}
+            description={
+              items.length === 0
+                ? 'Bu şubede henüz katalog ürünü yok.'
+                : 'Arama veya filtre kriterlerinizi değiştirin.'
+            }
           />
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card/90">

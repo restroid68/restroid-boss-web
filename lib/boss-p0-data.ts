@@ -1,14 +1,7 @@
 import {
-  ANA_KPIS,
   CHANNEL_CARDS,
-  DIKKAT_ALERTS,
-  PAYMENT_MIX,
-  FINANS_TILES,
-  RECENT_MOVEMENTS,
-  AUDIT_ALERTS,
   ACCOUNTS,
   LEDGER_ENTRIES,
-  STOK_KPI,
   type KpiMetric,
   type ChannelCard,
   type AlertRow,
@@ -30,11 +23,10 @@ import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
 import { bossBranchDisplayLabel } from '@/lib/boss-branch-display'
 import { readNativeSession } from '@/lib/boss-bridge'
 import {
-  labelOpAction,
-  labelOpEntity,
-  labelOpPage,
-  resolveBossUiLocale,
-} from '@/lib/boss-operation-log-labels'
+  mapNotificationToAlertRow,
+  mapNotificationToAuditAlert,
+  type BossNotificationApiRow,
+} from '@/lib/boss-notifications'
 
 export type AnaDashboardData = {
   restaurantName: string
@@ -97,78 +89,20 @@ function serviceAmtOnline(breakdown: unknown): number {
   return sum
 }
 
-/** Düz string; nesne/JSON asla UI’ye yazılmaz. */
-function asPlainString(v: unknown, fallback = ''): string {
-  if (v == null) return fallback
-  if (typeof v === 'string') {
-    const t = v.trim()
-    if (!t || t.startsWith('{') || t.startsWith('[')) return fallback
-    return t
-  }
-  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
-  return fallback
-}
-
-/** detail JSON’dan yalnızca insan okunur kısa ipucu (dil duyarlı) */
-function friendlyDetailHint(detail: unknown, locale: 'tr' | 'en'): string {
-  const m = asMap(detail)
-  if (!m) return asPlainString(detail, '')
-  const orderNo = asPlainString(m.orderNumber ?? m.order_number, '')
-  if (orderNo) return locale === 'en' ? `Order ${orderNo}` : `Sipariş ${orderNo}`
-  const name = asPlainString(m.name ?? m.productName ?? m.title ?? m.label, '')
-  if (name) return name
-  if (typeof m.lineCount === 'number' && Number.isFinite(m.lineCount)) {
-    return locale === 'en' ? `${m.lineCount} lines` : `${m.lineCount} satır`
-  }
-  if (m.markAll === true) return locale === 'en' ? 'Bulk update' : 'Toplu işaretleme'
-  if (typeof m.inserted === 'number') {
-    return locale === 'en' ? `${m.inserted} records` : `${m.inserted} kayıt`
-  }
-  return ''
-}
-
-function formatOperationAlert(raw: unknown, index: number): AlertRow {
-  const locale = resolveBossUiLocale()
-  const row = asMap(raw) ?? {}
-  const actionKey = asPlainString(row.action, '').toLowerCase()
-  const actionLabel = labelOpAction(actionKey || 'other', locale)
-  const entity = labelOpEntity(asPlainString(row.entityType, ''), locale)
-  const actor = asPlainString(row.actorName, '')
-  const page = labelOpPage(asPlainString(row.pageKey, ''), locale)
-  const hint = friendlyDetailHint(row.detail, locale)
-
-  const message = [actionLabel, entity].filter(Boolean).join(' · ') || actionLabel
-  const detailParts = [actor, page && page !== entity ? page : '', hint].filter(Boolean)
-  const detail = detailParts.join(' · ') || '—'
-
-  const timeRaw = asPlainString(row.createdAt ?? row.time, '')
-  const time = timeRaw.includes('T')
-    ? timeRaw.slice(11, 16)
-    : timeRaw.slice(0, 5) || '--:--'
-
-  const critical =
-    actionKey.includes('delete') ||
-    actionKey.includes('cancel') ||
-    actionKey.includes('iptal')
-
-  return {
-    id: asPlainString(row.id, `log-${index}`),
-    type: critical ? 'kritik' : 'uyari',
-    message,
-    detail,
-    time,
-  }
-}
-
 export async function loadAnaDashboard(): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback: AnaDashboardData = {
     restaurantName: session?.restaurantName || 'Restroid',
     branchLabel: bossBranchDisplayLabel(session?.branchCode),
-    kpis: ANA_KPIS,
-    channels: CHANNEL_CARDS,
-    alerts: DIKKAT_ALERTS,
-    operasyonBadges: { stok: STOK_KPI.kritikAdet },
+    kpis: [
+      { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺' },
+      { label: 'Ödenen', value: '0', delta: 0, unit: '₺' },
+      { label: 'Açık', value: '0', delta: 0, unit: '₺' },
+      { label: 'Konuk', value: '0', delta: 0, unit: '' },
+    ],
+    channels: CHANNEL_CARDS.map((c) => ({ ...c, value: c.key === 'masa' ? '0' : '₺0' })),
+    alerts: [],
+    operasyonBadges: {},
     source: 'mock',
   }
 
@@ -199,17 +133,32 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
       { isCacheable: (r) => r.ok },
     ),
     withBossCache(
-      'api:operation-logs:8',
-      BOSS_TTL.kpi,
+      'api:boss-notifications:8',
+      BOSS_TTL.live,
       () =>
-        bossFetch<{ items?: unknown[]; logs?: unknown[] }>('/api/operation-logs', {
-          query: { page: '1', pageSize: '8' },
+        bossFetch<{ items?: BossNotificationApiRow[] }>('/api/boss/notifications', {
+          query: { limit: '8' },
         }),
       { isCacheable: (r) => r.ok },
     ),
   ])
 
-  if (!sales.ok || !sales.data) return fallback
+  if (!sales.ok || !sales.data) {
+    return {
+      restaurantName: session.restaurantName || fallback.restaurantName,
+      branchLabel: bossBranchDisplayLabel(session.branchCode),
+      kpis: [
+        { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺' },
+        { label: 'Ödenen', value: '0', delta: 0, unit: '₺' },
+        { label: 'Açık', value: '0', delta: 0, unit: '₺' },
+        { label: 'Konuk', value: '0', delta: 0, unit: '' },
+      ],
+      channels: CHANNEL_CARDS.map((c) => ({ ...c, value: c.key === 'masa' ? '0' : '₺0' })),
+      alerts: [],
+      operasyonBadges: {},
+      source: 'api',
+    }
+  }
 
   const d = sales.data
   const summary = asMap(d.summary) ?? {}
@@ -227,7 +176,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     { label: 'Günlük Ciro', value: formatMoneyTR(ciro), delta: 0, unit: '₺' },
     { label: 'Ödenen', value: formatMoneyTR(paid || ciro), delta: 0, unit: '₺' },
     { label: 'Açık', value: formatMoneyTR(openAmt), delta: 0, unit: '₺' },
-    { label: 'Konuk', value: formatMoneyTR(guests), delta: 0, unit: '' },
+    { label: 'Konuk', value: String(Math.max(0, Math.round(guests))), delta: 0, unit: '' },
   ]
 
   const st = d.serviceTypeBreakdown
@@ -292,12 +241,10 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     },
   ]
 
-  const logItems = Array.isArray(logs.data?.items)
-    ? logs.data!.items!
-    : Array.isArray(logs.data?.logs)
-      ? logs.data!.logs!
-      : []
-  const alerts: AlertRow[] = logItems.slice(0, 5).map((raw, i) => formatOperationAlert(raw, i))
+  const notifyItems = Array.isArray(logs.data?.items) ? logs.data!.items! : []
+  const alerts: AlertRow[] = notifyItems
+    .slice(0, 5)
+    .map((raw, i) => mapNotificationToAlertRow(raw, i))
 
   return {
     restaurantName: session.restaurantName || fallback.restaurantName,
@@ -314,20 +261,38 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     source: 'api',
   }
   } catch {
-    return fallback
+    return {
+      restaurantName: session.restaurantName || fallback.restaurantName,
+      branchLabel: bossBranchDisplayLabel(session.branchCode),
+      kpis: [
+        { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺' },
+        { label: 'Ödenen', value: '0', delta: 0, unit: '₺' },
+        { label: 'Açık', value: '0', delta: 0, unit: '₺' },
+        { label: 'Konuk', value: '0', delta: 0, unit: '' },
+      ],
+      channels: CHANNEL_CARDS.map((c) => ({ ...c, value: c.key === 'masa' ? '0' : '₺0' })),
+      alerts: [],
+      operasyonBadges: {},
+      source: 'api',
+    }
   }
 }
 
 export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   const session = readNativeSession()
-  const fallback: FinansDashboardData = {
-    paymentMix: PAYMENT_MIX,
-    totalLabel: '₺24.860',
-    tiles: FINANS_TILES,
-    movements: RECENT_MOVEMENTS,
+  const emptyFinans: FinansDashboardData = {
+    paymentMix: [],
+    totalLabel: '₺0',
+    tiles: [
+      { label: 'Açık Hesaplar', value: '₺0', sub: 'bugün', variant: 'warning' },
+      { label: 'Giderler', value: '₺0', sub: 'bugün', variant: 'danger' },
+      { label: 'Tahsilatlar', value: '₺0', sub: 'bugün', variant: 'success' },
+      { label: 'Zayi / İptal', value: '₺0', sub: 'bugün', variant: 'neutral' },
+    ],
+    movements: [],
     source: 'mock',
   }
-  if (!session?.token) return fallback
+  if (!session?.token) return emptyFinans
 
   try {
   const day = todayYmd()
@@ -345,7 +310,7 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
     ),
   ])
 
-  if (!sales.ok && !tx.ok) return fallback
+  if (!sales.ok && !tx.ok) return { ...emptyFinans, source: 'api' }
 
   const summary = asMap(sales.data?.summary) ?? {}
   const ciro = num(summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue)
@@ -422,75 +387,33 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
     source: sales.ok || tx.ok ? 'api' : 'mock',
   }
   } catch {
-    return fallback
+    return { ...emptyFinans, source: 'api' }
   }
 }
 
 export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   const session = readNativeSession()
-  const fallback: DenetimDashboardData = { alerts: AUDIT_ALERTS, source: 'mock' }
-  if (!session?.token) return fallback
+  if (!session?.token) return { alerts: [], source: 'mock' }
 
   try {
-  const logs = await withBossCache(
-    'api:operation-logs:40',
-    BOSS_TTL.kpi,
-    () =>
-      bossFetch<{ items?: unknown[]; logs?: unknown[] }>('/api/operation-logs', {
-        query: { page: '1', pageSize: '40' },
-      }),
-    { isCacheable: (r) => r.ok },
-  )
-  if (!logs.ok) return fallback
+    const inbox = await withBossCache(
+      'api:boss-notifications:50',
+      BOSS_TTL.live,
+      () =>
+        bossFetch<{ items?: BossNotificationApiRow[] }>('/api/boss/notifications', {
+          query: { limit: '50' },
+        }),
+      { isCacheable: (r) => r.ok },
+    )
+    if (!inbox.ok) return { alerts: [], source: 'api' }
 
-  const items = Array.isArray(logs.data?.items)
-    ? logs.data!.items!
-    : Array.isArray(logs.data?.logs)
-      ? logs.data!.logs!
-      : []
-
-  const locale = resolveBossUiLocale()
-  const alerts: AuditAlert[] = items.map((raw, i) => {
-    const row = asMap(raw) ?? {}
-    const action = asPlainString(row.action ?? row.actionKey, '').toLowerCase()
-    let category: AuditAlert['category'] = 'Tümü'
-    if (action.includes('cancel') || action.includes('iptal')) category = 'İptal'
-    else if (action.includes('delete') || action.includes('sil')) category = 'Silme'
-    else if (action.includes('unpaid') || action.includes('ödemesiz') || action.includes('odemesiz')) {
-      category = 'Ödemesiz'
-    }
-
-    const severity: AuditAlert['severity'] =
-      category === 'İptal' || category === 'Silme' || category === 'Ödemesiz'
-        ? 'kritik'
-        : 'uyari'
-
-    const actionLabel = labelOpAction(action || 'other', locale)
-    const entity = labelOpEntity(asPlainString(row.entityType, ''), locale)
-    const detailAmt = asMap(row.detail)?.amount
-    const target =
-      labelOpPage(asPlainString(row.pageKey ?? row.page ?? row.target, ''), locale) ||
-      friendlyDetailHint(row.detail, locale) ||
-      '—'
-
+    const items = Array.isArray(inbox.data?.items) ? inbox.data!.items! : []
     return {
-      id: asPlainString(row.id, String(i)),
-      severity,
-      category,
-      title: entity ? `${actionLabel} · ${entity}` : actionLabel,
-      who: asPlainString(row.userName ?? row.actorName ?? row.email, '—'),
-      target,
-      amount:
-        detailAmt != null || row.amount != null
-          ? `₺${formatMoneyTR(num(detailAmt ?? row.amount))}`
-          : '—',
-      time: asPlainString(row.createdAt, '').slice(11, 16) || '--:--',
+      alerts: items.map((raw, i) => mapNotificationToAuditAlert(raw, i)),
+      source: 'api',
     }
-  })
-
-  return { alerts: alerts.length ? alerts : AUDIT_ALERTS, source: 'api' }
   } catch {
-    return fallback
+    return { alerts: [], source: 'api' }
   }
 }
 

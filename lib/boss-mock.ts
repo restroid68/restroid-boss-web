@@ -147,7 +147,17 @@ export const LEDGER_ENTRIES: LedgerEntry[] = [
 // ── Denetim (/boss-m/denetim) ────────────────────────────────────────────────
 
 export type AlertSeverity = 'kritik' | 'uyari'
-export type AlertFilter   = 'Tümü' | 'İptal' | 'Silme' | 'Ödemesiz'
+export type AlertFilter =
+  | 'Tümü'
+  | 'İptal'
+  | 'Zayi'
+  | 'İkram'
+  | 'Masa'
+  | 'Ödeme'
+  | 'Z Rapor'
+  | 'İndirim'
+  | 'Silme'
+  | 'Ödemesiz'
 
 export interface AuditAlert {
   id: string
@@ -158,6 +168,8 @@ export interface AuditAlert {
   amount: string
   time: string
   category: AlertFilter
+  unread?: boolean
+  summary?: string
 }
 
 export const AUDIT_ALERTS: AuditAlert[] = [

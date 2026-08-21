@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { X, Printer, CreditCard, Banknote, Receipt, AlertTriangle } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { Z_REPORTS } from '@/lib/boss-mock'
 import type { ZReport } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadZReportsPage } from '@/lib/boss-page-data'
@@ -75,12 +74,11 @@ function ZDetailPanel({ report, onClose }: { report: ZReport; onClose: () => voi
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function BossMZRaporlarPage() {
   const { data, loading } = useBossLoad(loadZReportsPage, {
-    reports: Z_REPORTS,
+    reports: [],
     source: 'mock',
   })
   const [selected, setSelected] = useState<ZReport | null>(null)
-  // API kaynağında boş liste gerçek durumdur; örnek veriye düşme yalnızca demo (mock) modunda.
-  const list = data.source === 'api' ? data.reports : data.reports.length ? data.reports : Z_REPORTS
+  const list = data.reports
 
   // Group by date
   const grouped = list.reduce<Record<string, ZReport[]>>((acc, r) => {

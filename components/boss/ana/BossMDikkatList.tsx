@@ -1,6 +1,7 @@
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { AlertRow } from '@/lib/boss-mock'
-import { AlertTriangle, AlertCircle } from 'lucide-react'
+import { AlertTriangle, AlertCircle, ChevronRight } from 'lucide-react'
 
 interface BossMDikkatListProps {
   alerts: AlertRow[]
@@ -13,7 +14,13 @@ export function BossMDikkatList({ alerts }: BossMDikkatListProps) {
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Dikkat
         </span>
-        <span className="text-xs text-muted-foreground">{alerts.length} uyarı</span>
+        <Link
+          href="/boss-m/denetim"
+          className="inline-flex items-center gap-0.5 text-xs text-primary"
+        >
+          {alerts.length} uyarı
+          <ChevronRight size={12} />
+        </Link>
       </div>
 
       <div className="flex flex-col divide-y divide-border">

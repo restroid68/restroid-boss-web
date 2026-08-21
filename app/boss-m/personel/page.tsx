@@ -6,7 +6,7 @@ import {
   AlertCircle, ChevronRight,
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { PERSONEL_LIST } from '@/lib/boss-mock'
+import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import type { PersonelRow } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadPersonelPage } from '@/lib/boss-page-data'
@@ -217,7 +217,7 @@ function DetailPanel({ person, onClose }: { person: PersonelRow; onClose: () => 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function BossMPersonelPage() {
   const { data, loading } = useBossLoad(loadPersonelPage, {
-    list: PERSONEL_LIST,
+    list: [],
     source: 'mock',
   })
   const list = data.list
@@ -284,6 +284,12 @@ export default function BossMPersonelPage() {
               <div key={i} className="h-14 bg-surface-2 rounded-2xl" />
             ))}
           </div>
+        ) : list.length === 0 ? (
+          <BossMEmptyState
+            icon={Users}
+            title="Personel kaydı yok"
+            description="Bu şubede henüz kadro görünmüyor."
+          />
         ) : (
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
             {tab === 'performans'

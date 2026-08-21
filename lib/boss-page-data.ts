@@ -232,9 +232,13 @@ export async function loadCatalogPage(): Promise<CatalogPageData> {
         '/api/products/catalog/page',
         { query: { offset: '0', limit: '200' } },
       )
-      if (!res.ok || !res.data) return fallback
+      if (!res.ok || !res.data) {
+        return { items: [], categories: ['Tümü'], products: [], productCategories: ['Tümü'], source: 'api' }
+      }
       const rows = asList(res.data.rows) as CatalogRow[]
-      if (!rows.length) return fallback
+      if (!rows.length) {
+        return { items: [], categories: ['Tümü'], products: [], productCategories: ['Tümü'], source: 'api' }
+      }
 
       const items = rows.map(mapCatalogRow)
       const cats = Array.from(new Set(items.map((i) => i.category))).sort()
@@ -333,15 +337,15 @@ export type PersonelPageData = {
 
 export async function loadPersonelPage(): Promise<PersonelPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { list: PERSONEL_LIST, source: 'mock' }
+  if (!session?.token) return { list: [], source: 'mock' }
 
   const res = await bossFetch<{ items?: unknown[]; personnel?: unknown[]; rows?: unknown[] }>(
     '/api/restaurant/personnel',
   )
-  if (!res.ok || !res.data) return { list: PERSONEL_LIST, source: 'mock' }
+  if (!res.ok || !res.data) return { list: [], source: 'api' }
 
   const raw = asList(res.data.items ?? res.data.personnel ?? res.data.rows)
-  if (!raw.length) return { list: PERSONEL_LIST, source: 'mock' }
+  if (!raw.length) return { list: [], source: 'api' }
 
   const list: PersonelRow[] = raw.map((r, i) => {
     const row = asMap(r) ?? {}
@@ -392,16 +396,16 @@ export async function loadKanallarPage(): Promise<KanallarPageData> {
     BOSS_TTL.definitions,
     async () => {
       const session = readNativeSession()
-      if (!session?.token) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
+      if (!session?.token) return { channels: [], source: 'mock' as const }
 
       const res = await bossFetch<unknown>('/api/service-channels')
-      if (!res.ok || res.data == null) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
+      if (!res.ok || res.data == null) return { channels: [], source: 'api' as const }
 
       const raw = Array.isArray(res.data)
         ? res.data
         : asList(asMap(res.data)?.channels ?? asMap(res.data)?.items ?? asMap(res.data)?.rows)
 
-      if (!raw.length) return { channels: SERVICE_CHANNELS, source: 'mock' as const }
+      if (!raw.length) return { channels: [], source: 'api' as const }
 
       const channels: ServiceChannel[] = raw.map((r) => {
         const row = asMap(r) ?? {}
@@ -563,19 +567,19 @@ export async function loadSayimlarPage(): Promise<SayimlarPageData> {
   const hub = await loadStokHub()
   const session = readNativeSession()
   if (!session?.token) {
-    return { sayimlar: SAYIMLAR, warehouses: hub.warehouses, source: 'mock' }
+    return { sayimlar: [], warehouses: hub.warehouses, source: 'mock' }
   }
 
   const res = await bossFetch<{ items?: unknown[]; rows?: unknown[] }>('/api/stock/inventory-counts', {
     query: { page: '1', pageSize: '50' },
   })
   if (!res.ok) {
-    return { sayimlar: SAYIMLAR, warehouses: hub.warehouses, source: hub.source }
+    return { sayimlar: [], warehouses: hub.warehouses, source: 'api' }
   }
 
   const raw = asList(res.data?.items ?? res.data?.rows)
   if (!raw.length) {
-    return { sayimlar: SAYIMLAR, warehouses: hub.warehouses, source: hub.source }
+    return { sayimlar: [], warehouses: hub.warehouses, source: 'api' }
   }
 
   const sayimlar: Sayim[] = raw.map((r, i) => {
@@ -606,19 +610,19 @@ export async function loadTransfersPage(): Promise<TransfersPageData> {
   const hub = await loadStokHub()
   const session = readNativeSession()
   if (!session?.token) {
-    return { transfers: STOK_TRANSFERS, warehouses: hub.warehouses, source: 'mock' }
+    return { transfers: [], warehouses: hub.warehouses, source: 'mock' }
   }
 
   const res = await bossFetch<{ items?: unknown[]; rows?: unknown[] }>('/api/stock/transfers', {
     query: { page: '1', pageSize: '50' },
   })
   if (!res.ok) {
-    return { transfers: STOK_TRANSFERS, warehouses: hub.warehouses, source: hub.source }
+    return { transfers: [], warehouses: hub.warehouses, source: 'api' }
   }
 
   const raw = asList(res.data?.items ?? res.data?.rows)
   if (!raw.length) {
-    return { transfers: STOK_TRANSFERS, warehouses: hub.warehouses, source: hub.source }
+    return { transfers: [], warehouses: hub.warehouses, source: 'api' }
   }
 
   const transfers: StokTransfer[] = raw.map((r, i) => {
@@ -653,7 +657,7 @@ export async function loadFirePage(): Promise<FirePageData> {
   const hub = await loadStokHub()
   const session = readNativeSession()
   if (!session?.token) {
-    return { byPeriod: FIRE_DATA, warehouses: hub.warehouses, source: 'mock' }
+    return { byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] }, warehouses: hub.warehouses, source: 'mock' }
   }
 
   const day = todayYmd()
@@ -671,7 +675,7 @@ export async function loadFirePage(): Promise<FirePageData> {
   }
 
   if (!raw.length) {
-    return { byPeriod: FIRE_DATA, warehouses: hub.warehouses, source: hub.source }
+    return { byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] }, warehouses: hub.warehouses, source: 'api' }
   }
 
   const entries: FireEntry[] = raw
@@ -838,16 +842,16 @@ export async function loadOdemePage(): Promise<SistemOdemeData> {
         { id: '4', name: 'Havale', active: false },
         { id: '5', name: 'Cari', active: true },
       ]
-      if (!session?.token) return { payments: mock, source: 'mock' as const }
+      if (!session?.token) return { payments: [], source: 'mock' as const }
 
       const res = await bossFetch<unknown>('/api/definitions/payment-types')
-      if (!res.ok || res.data == null) return { payments: mock, source: 'mock' as const }
+      if (!res.ok || res.data == null) return { payments: [], source: 'api' as const }
 
       const raw = Array.isArray(res.data)
         ? res.data
         : asList(asMap(res.data)?.items ?? asMap(res.data)?.rows ?? asMap(res.data)?.paymentTypes)
 
-      if (!raw.length) return { payments: mock, source: 'mock' as const }
+      if (!raw.length) return { payments: [], source: 'api' as const }
 
       const payments = raw.map((r, i) => {
         const row = asMap(r) ?? {}
@@ -945,16 +949,16 @@ export async function loadUretimPage(): Promise<SistemUretimData> {
         { id: '2', name: 'Bar', active: true },
         { id: '3', name: 'Tatlı', active: false },
       ]
-      if (!session?.token) return { areas: mock, source: 'mock' as const }
+      if (!session?.token) return { areas: [], source: 'mock' as const }
 
       const res = await bossFetch<unknown>('/api/definitions/production-areas')
-      if (!res.ok || res.data == null) return { areas: mock, source: 'mock' as const }
+      if (!res.ok || res.data == null) return { areas: [], source: 'api' as const }
 
       const raw = Array.isArray(res.data)
         ? res.data
         : asList(asMap(res.data)?.items ?? asMap(res.data)?.areas ?? asMap(res.data)?.rows)
 
-      if (!raw.length) return { areas: mock, source: 'mock' as const }
+      if (!raw.length) return { areas: [], source: 'api' as const }
 
       const areas = raw.map((r, i) => {
         const row = asMap(r) ?? {}
@@ -1075,7 +1079,7 @@ export type CarilerPageData = {
 
 export async function loadCarilerPage(): Promise<CarilerPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { list: CARILER, source: 'mock' }
+  if (!session?.token) return { list: [], source: 'mock' }
 
   const [cust, supp] = await Promise.all([
     bossFetch<{ items?: unknown[]; rows?: unknown[]; customers?: unknown[] }>('/api/customers', {
@@ -1089,7 +1093,7 @@ export async function loadCarilerPage(): Promise<CarilerPageData> {
   const custRaw = asList(cust.data?.items ?? cust.data?.rows ?? cust.data?.customers)
   const suppRaw = asList(supp.data?.items ?? supp.data?.rows ?? supp.data?.suppliers)
 
-  if (!custRaw.length && !suppRaw.length) return { list: CARILER, source: 'mock' }
+  if (!custRaw.length && !suppRaw.length) return { list: [], source: 'api' }
 
   const list: Cari[] = [
     ...custRaw.map((r, i) => {
@@ -1130,14 +1134,14 @@ export type LisanslarPageData = {
 
 export async function loadLisanslarPage(): Promise<LisanslarPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { list: LISANSLAR, source: 'mock' }
+  if (!session?.token) return { list: [], source: 'mock' }
 
   const [stockLic, bridge] = await Promise.all([
     bossFetch<Record<string, unknown>>('/api/stock/license-status'),
     bossFetch<Record<string, unknown>>('/api/sales/hardware-bridge/status'),
   ])
 
-  if (!stockLic.ok && !bridge.ok) return { list: LISANSLAR, source: 'mock' }
+  if (!stockLic.ok && !bridge.ok) return { list: [], source: 'api' }
 
   const list: Lisans[] = LISANSLAR.map((base) => {
     const name = base.name.toLowerCase()
@@ -1396,12 +1400,12 @@ export type SahipPageData = {
 
 export async function loadSahipPage(): Promise<SahipPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { months: SAHIP_RAPORLAR, source: 'mock' }
+  if (!session?.token) return { months: [], source: 'mock' }
 
   const res = await bossFetch<Record<string, unknown>>('/api/finance/owner-overview', {
     query: { days: '30' },
   })
-  if (!res.ok || !res.data) return { months: SAHIP_RAPORLAR, source: 'mock' }
+  if (!res.ok || !res.data) return { months: [], source: 'api' }
 
   // Cloud FinanceOwnerOverview: sales.summary + periodInsight + payrollByType
   const d = res.data
@@ -1450,13 +1454,13 @@ export type ZPageData = {
 
 export async function loadZReportsPage(): Promise<ZPageData> {
   const session = readNativeSession()
-  if (!session?.token) return { reports: Z_REPORTS, source: 'mock' }
+  if (!session?.token) return { reports: [], source: 'mock' }
 
   // Gerçek Z arşivi: köprünün fiscal.z_report olayları (TenantFiscalZReportReadModel).
   const res = await bossFetch<{ items?: unknown[] }>('/api/finance/z-reports', {
     query: { page: '1', pageSize: '30' },
   })
-  if (!res.ok || !res.data) return { reports: Z_REPORTS, source: 'mock' }
+  if (!res.ok || !res.data) return { reports: [], source: 'api' }
 
   const rows = asList(res.data.items)
   const reports: ZReport[] = rows.map((r, i) => {

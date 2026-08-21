@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Flame, Package, Warehouse, StickyNote, CalendarDays } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { FIRE_DATA, STOK_WAREHOUSES } from '@/lib/boss-mock'
+import { STOK_WAREHOUSES } from '@/lib/boss-mock'
 import type { FirePeriod, FireEntry, StokWarehouse } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadFirePage } from '@/lib/boss-page-data'
@@ -88,12 +88,12 @@ function FireRow({ entry, warehouses }: { entry: FireEntry; warehouses: StokWare
 
 export default function BossMStokFirePage() {
   const { data, loading } = useBossLoad(loadFirePage, {
-    byPeriod: FIRE_DATA,
+    byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] },
     warehouses: STOK_WAREHOUSES,
     source: 'mock',
   })
   const [period, setPeriod] = useState<FirePeriod>('Bugün')
-  const entries = data.byPeriod[period]
+  const entries = data.byPeriod[period] ?? []
 
   return (
     <main className="flex flex-col h-full bg-transparent overflow-hidden">

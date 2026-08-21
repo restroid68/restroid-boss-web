@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { AUDIT_ALERTS, type AlertFilter, type AuditAlert } from '@/lib/boss-mock'
+import type { AlertFilter, AuditAlert } from '@/lib/boss-mock'
 import { loadDenetimDashboard } from '@/lib/boss-p0-data'
+import { DENETIM_FILTERS } from '@/lib/boss-notifications'
+import { bossFetch } from '@/lib/boss-api'
+import { invalidateBossCache } from '@/lib/boss-page-cache'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { cn } from '@/lib/utils'
-import { AlertTriangle, AlertCircle, Radio, SearchX } from 'lucide-react'
-
-const FILTERS: AlertFilter[] = ['Tümü', 'İptal', 'Silme', 'Ödemesiz']
+import { AlertTriangle, AlertCircle, Radio, SearchX, CheckCheck } from 'lucide-react'
 
 function severityCount(alerts: AuditAlert[], severity: AuditAlert['severity']) {
   return alerts.filter((a) => a.severity === severity).length
@@ -18,12 +19,34 @@ function severityCount(alerts: AuditAlert[], severity: AuditAlert['severity']) {
 
 export default function BossMDenetimPage() {
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('Tümü')
-  const { data, loading } = useBossLoad(loadDenetimDashboard, {
-    alerts: AUDIT_ALERTS,
-    source: 'mock',
-  })
+  const { data, setData, loading, reload } = useBossLoad(
+    loadDenetimDashboard,
+    { alerts: [], source: 'mock' },
+    { cacheKey: 'page:denetim', ttlMs: 20_000 },
+  )
   const alerts = data.alerts
   const source = data.source
+
+  async function markAllRead() {
+    const unread = alerts.filter((a) => a.unread)
+    if (!unread.length) return
+    await bossFetch('/api/boss/notifications/read-all', { method: 'POST' })
+    invalidateBossCache('api:boss-notifications:')
+    setData({
+      ...data,
+      alerts: alerts.map((a) => ({ ...a, unread: false })),
+    })
+  }
+
+  async function markOneRead(id: string) {
+    const row = alerts.find((a) => a.id === id)
+    if (!row?.unread) return
+    await bossFetch(`/api/boss/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' })
+    setData({
+      ...data,
+      alerts: alerts.map((a) => (a.id === id ? { ...a, unread: false } : a)),
+    })
+  }
 
   if (loading) {
     return (
@@ -37,17 +60,34 @@ export default function BossMDenetimPage() {
   const filtered =
     activeFilter === 'Tümü' ? alerts : alerts.filter((a) => a.category === activeFilter)
   const kritikCount = severityCount(alerts, 'kritik')
+  const unreadCount = alerts.filter((a) => a.unread).length
 
   return (
     <main className="flex flex-col gap-4 pb-4">
       <BossMPageHeader
         title="Denetim"
         trailing={
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-danger/10 border border-danger/25 rounded-full">
-            <Radio size={10} className="text-danger animate-pulse" />
-            <span className="text-[10px] font-semibold text-danger">
-              {source === 'api' ? 'Canlı' : 'Örnek'}
-            </span>
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void markAllRead()}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-border bg-card text-[10px] font-semibold text-muted-foreground active:bg-surface-2"
+              >
+                <CheckCheck size={12} />
+                Okundu
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void reload()}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-danger/10 border border-danger/25 rounded-full"
+            >
+              <Radio size={10} className={cn('text-danger', source === 'api' && 'animate-pulse')} />
+              <span className="text-[10px] font-semibold text-danger">
+                {source === 'api' ? 'Canlı' : 'Bağlantı yok'}
+              </span>
+            </button>
           </div>
         }
       />
@@ -69,9 +109,10 @@ export default function BossMDenetimPage() {
       </div>
 
       <div className="flex gap-2 px-4 overflow-x-auto pb-0.5">
-        {FILTERS.map((f) => (
+        {DENETIM_FILTERS.map((f) => (
           <button
             key={f}
+            type="button"
             onClick={() => setActiveFilter(f)}
             className={cn(
               'px-3 py-2 rounded-xl border text-xs font-medium whitespace-nowrap transition-colors',
@@ -88,24 +129,31 @@ export default function BossMDenetimPage() {
       {filtered.length === 0 ? (
         <BossMEmptyState
           icon={SearchX}
-          title="Uyarı bulunamadı"
-          description="Bu filtreye göre kayıt yok."
+          title={alerts.length === 0 ? 'Henüz kritik hareket yok' : 'Uyarı bulunamadı'}
+          description={
+            alerts.length === 0
+              ? 'İptal, zayi, masa birleştirme, ödeme iptali ve Z rapor burada görünür.'
+              : 'Bu filtreye göre kayıt yok.'
+          }
         />
       ) : (
         <div className="flex flex-col gap-2 px-4">
           {filtered.map((alert) => (
-            <div
+            <button
               key={alert.id}
+              type="button"
+              onClick={() => void markOneRead(alert.id)}
               className={cn(
-                'bg-card border rounded-2xl px-4 py-4 flex flex-col gap-2',
+                'bg-card border rounded-2xl px-4 py-4 flex flex-col gap-2 text-left',
                 alert.severity === 'kritik' ? 'border-danger/30' : 'border-warning/25',
+                alert.unread && 'ring-1 ring-primary/30',
               )}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={cn(
-                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide',
+                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide shrink-0',
                       alert.severity === 'kritik'
                         ? 'bg-danger/15 text-danger'
                         : 'bg-warning/15 text-warning',
@@ -118,10 +166,19 @@ export default function BossMDenetimPage() {
                     )}
                     {alert.severity}
                   </span>
-                  <span className="text-sm font-semibold text-foreground">{alert.title}</span>
+                  <span className="text-sm font-semibold text-foreground truncate">
+                    {alert.title}
+                  </span>
+                  {alert.unread && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                  )}
                 </div>
                 <span className="text-xs text-muted-foreground shrink-0">{alert.time}</span>
               </div>
+
+              {alert.summary ? (
+                <p className="text-xs text-muted-foreground leading-relaxed">{alert.summary}</p>
+              ) : null}
 
               <div className="flex items-center gap-4">
                 <div className="flex flex-col gap-0.5">
@@ -150,7 +207,7 @@ export default function BossMDenetimPage() {
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
