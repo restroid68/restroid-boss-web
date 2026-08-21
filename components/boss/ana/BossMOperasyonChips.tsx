@@ -84,10 +84,10 @@ export function BossMOperasyonChips({ chips }: BossMOperasyonChipsProps) {
 // ── Pre-wired defaults (used inside this client module only) ─────────────────
 
 const DEFAULT_CHIPS: OperasyonChip[] = [
-  { key: 'online',   label: 'Online bekleyen', badge: 4,  href: '/boss-m/siparisler/online', icon: ShoppingBag,   variant: 'warning' },
-  { key: 'qr',       label: 'QR bekleyen',     badge: 7,  href: '/boss-m/siparisler/qr',     icon: QrCode,        variant: 'default' },
-  { key: 'hesaplar', label: 'Açık hesaplar',   badge: 12, href: '/boss-m/kasa',              icon: BookOpen,      variant: 'default' },
-  { key: 'stok',     label: 'Kritik stok',     badge: 0,  href: '/boss-m/stok/kritik',       icon: AlertTriangle, variant: 'danger'  },
+  { key: 'online',   label: 'Online bekleyen', href: '/boss-m/siparisler/online', icon: ShoppingBag,   variant: 'warning' },
+  { key: 'qr',       label: 'QR bekleyen',     href: '/boss-m/siparisler/qr',     icon: QrCode,        variant: 'default' },
+  { key: 'hesaplar', label: 'Açık hesaplar',   href: '/boss-m/kasa',              icon: BookOpen,      variant: 'default' },
+  { key: 'stok',     label: 'Kritik stok',     href: '/boss-m/stok/kritik',       icon: AlertTriangle, variant: 'danger'  },
 ]
 
 /**

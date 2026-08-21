@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Plus, ClipboardList, ClipboardCheck, User, CalendarDays } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { SAYIMLAR, STOK_WAREHOUSES } from '@/lib/boss-mock'
 import type { SayimStatus, Sayim, StokWarehouse } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadSayimlarPage } from '@/lib/boss-page-data'
@@ -101,8 +100,8 @@ function SayimCard({ sayim, warehouses }: { sayim: Sayim; warehouses: StokWareho
 
 export default function BossMStokSayimlarPage() {
   const { data, loading } = useBossLoad(loadSayimlarPage, {
-    sayimlar: SAYIMLAR,
-    warehouses: STOK_WAREHOUSES,
+    sayimlar: [],
+    warehouses: [],
     source: 'mock',
   })
   const [activeTab, setActiveTab] = useState<SayimStatus>('Sayımda')

@@ -294,9 +294,10 @@ export interface Product {
   name: string
   category: string
   sku: string
-  stock: number
+  /** Gerçek miktar API'de yok — null = bilinmiyor; UI sayı yerine durum rozeti gösterir */
+  stock: number | null
   unit: string
-  minStock: number
+  minStock: number | null
   status: StockStatus
   price: string
 }
@@ -386,13 +387,6 @@ export interface Sayim {
   date: string
 }
 
-export const SAYIMLAR: Sayim[] = [
-  { id: 'sy01', warehouseId: 'w1', status: 'Sayımda', counted: 12, total: 46, createdBy: 'Ali K.',   date: '18 Tem 09:00' },
-  { id: 'sy02', warehouseId: 'w2', status: 'Kapalı',  counted: 24, total: 24, createdBy: 'Zeynep T.',date: '16 Tem 14:30' },
-  { id: 'sy03', warehouseId: 'w3', status: 'Kapalı',  counted: 18, total: 18, createdBy: 'Can Y.',   date: '15 Tem 11:00' },
-  { id: 'sy04', warehouseId: 'w1', status: 'Kapalı',  counted: 46, total: 46, createdBy: 'Mert D.',  date: '14 Tem 16:00' },
-]
-
 // ── Stok / Transferler ───────────────────────────────────────────────────────
 
 export type TransferStatus = 'Bekleyen' | 'Yolda' | 'Tamamlanan'
@@ -406,14 +400,6 @@ export interface StokTransfer {
   time: string
   note?: string
 }
-
-export const STOK_TRANSFERS: StokTransfer[] = [
-  { id: 'tr01', fromWarehouseId: 'w1', toWarehouseId: 'w3', itemCount: 3,  status: 'Bekleyen',    time: '18 Tem 14:10', note: 'Bar eksiği acil' },
-  { id: 'tr02', fromWarehouseId: 'w2', toWarehouseId: 'w1', itemCount: 5,  status: 'Yolda',       time: '18 Tem 12:45' },
-  { id: 'tr03', fromWarehouseId: 'w1', toWarehouseId: 'w2', itemCount: 2,  status: 'Tamamlanan',  time: '17 Tem 16:30' },
-  { id: 'tr04', fromWarehouseId: 'w3', toWarehouseId: 'w1', itemCount: 4,  status: 'Tamamlanan',  time: '17 Tem 11:00' },
-  { id: 'tr05', fromWarehouseId: 'w2', toWarehouseId: 'w3', itemCount: 1,  status: 'Tamamlanan',  time: '16 Tem 09:20' },
-]
 
 // ── Stok / Fire ──────────────────────────────────────────────────────────────
 

@@ -70,40 +70,39 @@ function CariDetailPanel({ cari, onClose }: { cari: Cari; onClose: () => void })
           </div>
         </div>
 
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-          Son 5 Hareket
-        </p>
-        {cari.ledger.length === 0 ? (
-          <div className="bg-card border border-border rounded-2xl px-4 py-8 text-center">
-            <p className="text-sm text-muted-foreground">Hareket kaydı yok</p>
-          </div>
-        ) : (
-          <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
-            {cari.ledger.map((row, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-3.5">
-                <div className={cn(
-                  'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
-                  row.sign === '+' ? 'bg-success/10' : 'bg-primary/10'
-                )}>
-                  {row.sign === '+' ? (
-                    <ArrowUpRight size={13} className="text-success" strokeWidth={2.5} />
-                  ) : (
-                    <ArrowDownLeft size={13} className="text-primary" strokeWidth={2.5} />
-                  )}
+        {/* Hareket verisi API'ye bağlı değil — veri yokken bölüm tamamen gizlenir */}
+        {cari.ledger.length > 0 && (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+              Son 5 Hareket
+            </p>
+            <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+              {cari.ledger.map((row, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+                  <div className={cn(
+                    'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
+                    row.sign === '+' ? 'bg-success/10' : 'bg-primary/10'
+                  )}>
+                    {row.sign === '+' ? (
+                      <ArrowUpRight size={13} className="text-success" strokeWidth={2.5} />
+                    ) : (
+                      <ArrowDownLeft size={13} className="text-primary" strokeWidth={2.5} />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground truncate">{row.desc}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{row.date}</p>
+                  </div>
+                  <span className={cn(
+                    'text-sm font-bold tabular-nums shrink-0',
+                    row.sign === '+' ? 'text-success' : 'text-foreground'
+                  )}>
+                    {row.sign === '+' ? '+' : '−'}{row.amount}
+                  </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground truncate">{row.desc}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{row.date}</p>
-                </div>
-                <span className={cn(
-                  'text-sm font-bold tabular-nums shrink-0',
-                  row.sign === '+' ? 'text-success' : 'text-foreground'
-                )}>
-                  {row.sign === '+' ? '+' : '−'}{row.amount}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

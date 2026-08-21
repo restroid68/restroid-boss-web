@@ -7,7 +7,7 @@ import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
 import { BossMMoneyText } from '@/components/boss/BossMMoneyText'
 import { BossMSearchCreate } from '@/components/boss/BossMSearchCreate'
-import { ACCOUNTS, LEDGER_ENTRIES, type Account } from '@/lib/boss-mock'
+import type { Account } from '@/lib/boss-mock'
 import { loadKasaDashboard } from '@/lib/boss-p0-data'
 import { createFinanceAccount } from '@/lib/boss-page-data'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -39,9 +39,10 @@ const ACTIONS = [
 
 export default function BossMCashPage() {
   const router = useRouter()
+  // Boş başlangıç — yüklenene kadar skeleton gösterilir, mock hesap/hareket yok
   const { data, loading, setData, reload } = useBossLoad(loadKasaDashboard, {
-    accounts: ACCOUNTS,
-    ledger: LEDGER_ENTRIES,
+    accounts: [],
+    ledger: [],
     source: 'mock',
   })
   const accounts = data.accounts

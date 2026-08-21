@@ -135,5 +135,9 @@ export function useBossLoad<T>(
     }
   }, [run, cacheKey])
 
-  return { data, setData, loading, error, reload: () => run('hard') }
+  const reload = useCallback(() => run('hard'), [run])
+  /** Skeleton göstermeden arka planda yenile (örn. visibilitychange). */
+  const reloadSoft = useCallback(() => run('soft'), [run])
+
+  return { data, setData, loading, error, reload, reloadSoft }
 }

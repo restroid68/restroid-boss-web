@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { STOK_TRANSFERS, STOK_WAREHOUSES } from '@/lib/boss-mock'
 import type { TransferStatus, StokTransfer, StokWarehouse } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadTransfersPage } from '@/lib/boss-page-data'
@@ -55,21 +54,16 @@ const STATUS_CONFIG: Record<TransferStatus, {
   },
 }
 
+// Sunucu tarafında onay API'si yok — durum salt okunur rozet olarak gösterilir
 function TransferCard({
   transfer,
   warehouses,
-  onApprove,
-  onDetail,
 }: {
   transfer: StokTransfer
   warehouses: StokWarehouse[]
-  onApprove?: (id: string) => void
-  onDetail?: (id: string) => void
 }) {
   const cfg = STATUS_CONFIG[transfer.status]
   const StatusIcon = cfg.icon
-  const isPending = transfer.status === 'Bekleyen'
-  const isInTransit = transfer.status === 'Yolda'
 
   return (
     <div className={cn('bg-card border rounded-2xl px-4 py-4 flex flex-col gap-3', cfg.cardBorder)}>
@@ -115,53 +109,25 @@ function TransferCard({
           </div>
         )}
       </div>
-
-      {(isPending || isInTransit) && (
-        <div className="flex items-center gap-2 pt-3 border-t border-border">
-          <button
-            onClick={() => onDetail?.(transfer.id)}
-            className="flex-1 flex items-center justify-center gap-1.5 h-10 rounded-xl border border-border text-xs font-medium text-muted-foreground active:bg-surface-2 transition-colors"
-          >
-            Detay
-          </button>
-          {isPending && (
-            <button
-              onClick={() => onApprove?.(transfer.id)}
-              className="flex-1 flex items-center justify-center gap-1.5 h-10 rounded-xl bg-primary/10 border border-primary/30 text-xs font-semibold text-primary active:bg-primary/20 transition-colors"
-            >
-              Onayla
-            </button>
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
 export default function BossMStokTransferlerPage() {
   const { data, loading } = useBossLoad(loadTransfersPage, {
-    transfers: STOK_TRANSFERS,
-    warehouses: STOK_WAREHOUSES,
+    transfers: [],
+    warehouses: [],
     source: 'mock',
   })
   const [activeTab, setActiveTab] = useState<TransferStatus>('Bekleyen')
-  const [approvedIds, setApprovedIds] = useState<Set<string>>(new Set())
-
-  function handleApprove(id: string) {
-    setApprovedIds((prev) => new Set(prev).add(id))
-  }
 
   const counts: Record<TransferStatus, number> = {
-    Bekleyen:   data.transfers.filter((t) => t.status === 'Bekleyen'   && !approvedIds.has(t.id)).length,
-    Yolda:      data.transfers.filter((t) => t.status === 'Yolda'      || approvedIds.has(t.id)).length,
-    Tamamlanan: data.transfers.filter((t) => t.status === 'Tamamlanan' && !approvedIds.has(t.id)).length,
+    Bekleyen:   data.transfers.filter((t) => t.status === 'Bekleyen').length,
+    Yolda:      data.transfers.filter((t) => t.status === 'Yolda').length,
+    Tamamlanan: data.transfers.filter((t) => t.status === 'Tamamlanan').length,
   }
 
-  const filtered = data.transfers.filter((t) => {
-    if (activeTab === 'Bekleyen')   return t.status === 'Bekleyen'   && !approvedIds.has(t.id)
-    if (activeTab === 'Yolda')      return t.status === 'Yolda'      || approvedIds.has(t.id)
-    return t.status === 'Tamamlanan' && !approvedIds.has(t.id)
-  })
+  const filtered = data.transfers.filter((t) => t.status === activeTab)
 
   const tabColor: Record<TransferStatus, string> = {
     Bekleyen:   'bg-warning/10 border-warning/40 text-warning',
@@ -217,13 +183,8 @@ export default function BossMStokTransferlerPage() {
             {filtered.map((transfer) => (
               <TransferCard
                 key={transfer.id}
-                transfer={
-                  approvedIds.has(transfer.id)
-                    ? { ...transfer, status: 'Yolda' as TransferStatus }
-                    : transfer
-                }
+                transfer={transfer}
                 warehouses={data.warehouses}
-                onApprove={handleApprove}
               />
             ))}
           </div>

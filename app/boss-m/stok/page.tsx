@@ -13,11 +13,6 @@ import {
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import {
-  STOK_ITEMS,
-  STOK_WAREHOUSES,
-  STOK_KPI,
-} from '@/lib/boss-mock'
 import type { StokItem } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadStokHub } from '@/lib/boss-page-data'
@@ -169,9 +164,9 @@ export default function BossMStokPage() {
   const { data, loading } = useBossLoad(
     loadStokHub,
     {
-      warehouses: STOK_WAREHOUSES,
-      items: STOK_ITEMS,
-      kpi: STOK_KPI,
+      warehouses: [],
+      items: [],
+      kpi: { toplamDeger: '—', kritikAdet: 0, bugunFireTutar: '—', acikSayim: 0 },
       source: 'mock',
     },
     { cacheKey: 'page:stok-shell', ttlMs: 45_000 },

@@ -1,26 +1,20 @@
 ﻿'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import {
-  Search,
-  X,
-  Plus,
-  Minus,
-  PackageX,
-  PackageOpen,
-} from 'lucide-react'
+import { Search, X, PackageX } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { PRODUCTS, PRODUCT_CATEGORIES } from '@/lib/boss-mock'
+import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import type { Product, StockStatus } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadCatalogPage, patchProductStockStatus } from '@/lib/boss-page-data'
 import { cn } from '@/lib/utils'
 
 // ── Status helpers ────────────────────────────────────────────────────────────
+// Gerçek stok miktarı API'de yok — sayı yerine yalnızca tükendi/satışta durumu.
 
 const STATUS_LABEL: Record<StockStatus, string> = {
-  normal:  'Normal',
+  normal:  'Satışta',
   dusuk:   'Düşük',
   tukendi: 'Tükendi',
 }
@@ -37,23 +31,17 @@ const STATUS_DOT: Record<StockStatus, string> = {
   tukendi: 'bg-danger',
 }
 
-function deriveStatus(p: Product): StockStatus {
-  if (p.stock === 0) return 'tukendi'
-  if (p.stock < p.minStock) return 'dusuk'
-  return 'normal'
-}
-
 // ── Product row ───────────────────────────────────────────────────────────────
 
 function BossMProductRow({
   product,
-  onAdjust,
+  status,
+  onToggleDepleted,
 }: {
-  product: Product & { _stock: number }
-  onAdjust: (id: string, delta: number) => void
+  product: Product
+  status: StockStatus
+  onToggleDepleted: (product: Product, depleted: boolean) => void
 }) {
-  const status = deriveStatus({ ...product, stock: product._stock })
-
   return (
     <div className="flex items-center gap-3 px-4 py-3.5">
       {/* Status dot */}
@@ -83,34 +71,12 @@ function BossMProductRow({
         </div>
       </div>
 
-      {/* Quick stock adjuster */}
-      <div className="flex items-center gap-0 bg-surface-2 rounded-xl overflow-hidden shrink-0">
-        <button
-          onClick={() => onAdjust(product.id, -1)}
-          disabled={product._stock === 0}
-          aria-label="Stok azalt"
-          className="flex items-center justify-center w-9 h-9 text-muted-foreground active:bg-surface-3 disabled:opacity-30 transition-colors"
-        >
-          <Minus size={13} strokeWidth={2.5} />
-        </button>
-
-        <span
-          className={cn(
-            'w-10 text-center text-sm font-bold tabular-nums',
-            status === 'tukendi' ? 'text-danger' : status === 'dusuk' ? 'text-warning' : 'text-foreground'
-          )}
-        >
-          {product._stock}
-        </span>
-
-        <button
-          onClick={() => onAdjust(product.id, +1)}
-          aria-label="Stok artır"
-          className="flex items-center justify-center w-9 h-9 text-muted-foreground active:bg-surface-3 transition-colors"
-        >
-          <Plus size={13} strokeWidth={2.5} />
-        </button>
-      </div>
+      {/* Satışta / Tükendi anahtarı */}
+      <BossMSwitch
+        checked={status !== 'tukendi'}
+        onChange={(v) => onToggleDepleted(product, !v)}
+        aria-label={status === 'tukendi' ? 'Satışa aç' : 'Tükendi işaretle'}
+      />
     </div>
   )
 }
@@ -120,54 +86,43 @@ function BossMProductRow({
 export default function BossMUrunlerPage() {
   const { data, loading } = useBossLoad(loadCatalogPage, {
     items: [],
-    categories: PRODUCT_CATEGORIES,
-    products: PRODUCTS,
-    productCategories: PRODUCT_CATEGORIES,
+    categories: ['Tümü'],
+    products: [],
+    productCategories: ['Tümü'],
     source: 'mock',
   })
   const products = data.products
   const productCategories = data.productCategories
 
-  const [stocks, setStocks] = useState<Record<string, number>>({})
+  // Yerel geçersiz kılmalar — sunucu patch'i sonrası anlık görünüm
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, StockStatus>>({})
   useEffect(() => {
-    setStocks(Object.fromEntries(products.map((p) => [p.id, p.stock])))
+    setStatusOverrides({})
   }, [products])
 
   const [query,    setQuery]    = useState('')
   const [category, setCategory] = useState('Tümü')
   const [searchOpen, setSearchOpen] = useState(false)
 
-  function adjustStock(id: string, delta: number) {
-    setStocks((prev) => {
-      const next = Math.max(0, (prev[id] ?? 0) + delta)
-      const product = products.find((p) => p.id === id)
-      if (product) {
-        const wasEmpty = (prev[id] ?? 0) === 0
-        const nowEmpty = next === 0
-        if (wasEmpty !== nowEmpty) {
-          void patchProductStockStatus(id, product.sku, !nowEmpty)
-        }
-      }
-      return { ...prev, [id]: next }
-    })
+  const statusOf = (p: Product): StockStatus => statusOverrides[p.id] ?? p.status
+
+  function toggleDepleted(product: Product, depleted: boolean) {
+    setStatusOverrides((prev) => ({
+      ...prev,
+      [product.id]: depleted ? 'tukendi' : 'normal',
+    }))
+    void patchProductStockStatus(product.id, product.sku, !depleted)
   }
 
-  const augmented = useMemo(
-    () => products.map((p) => ({ ...p, _stock: stocks[p.id] ?? p.stock })),
-    [stocks, products]
-  )
-
   const filtered = useMemo(() => {
-    return augmented.filter((p) => {
+    return products.filter((p) => {
       const matchCat = category === 'Tümü' || p.category === category
       const matchQ   = !query || p.name.toLowerCase().includes(query.toLowerCase())
       return matchCat && matchQ
     })
-  }, [augmented, category, query])
+  }, [products, category, query])
 
-  // Summary counts
-  const lowCount     = augmented.filter((p) => deriveStatus({ ...p, stock: p._stock }) === 'dusuk').length
-  const emptyCount   = augmented.filter((p) => p._stock === 0).length
+  const emptyCount = products.filter((p) => statusOf(p) === 'tukendi').length
 
   return (
     <main className="flex flex-col h-full bg-transparent">
@@ -208,21 +163,13 @@ export default function BossMUrunlerPage() {
         </div>
       )}
 
-      {/* ── Status summary pills ── */}
-      {(lowCount > 0 || emptyCount > 0) && (
+      {/* ── Status summary pill ── */}
+      {emptyCount > 0 && (
         <div className="flex gap-2 px-4 pb-3">
-          {emptyCount > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-danger/10 border border-danger/20">
-              <PackageX size={12} className="text-danger" />
-              <span className="text-[11px] font-semibold text-danger">{emptyCount} tükendi</span>
-            </div>
-          )}
-          {lowCount > 0 && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-warning/10 border border-warning/20">
-              <PackageOpen size={12} className="text-warning" />
-              <span className="text-[11px] font-semibold text-warning">{lowCount} düşük stok</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-danger/10 border border-danger/20">
+            <PackageX size={12} className="text-danger" />
+            <span className="text-[11px] font-semibold text-danger">{emptyCount} tükendi</span>
+          </div>
         </div>
       )}
 
@@ -256,7 +203,11 @@ export default function BossMUrunlerPage() {
           <BossMEmptyState
             icon={PackageX}
             title="Ürün bulunamadı"
-            description="Arama veya filtre kriterlerinizi değiştirin."
+            description={
+              products.length === 0
+                ? 'Ürün listesi alınamadı veya kayıt yok.'
+                : 'Arama veya filtre kriterlerinizi değiştirin.'
+            }
           />
         ) : (
           <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -265,7 +216,8 @@ export default function BossMUrunlerPage() {
                 <BossMProductRow
                   key={product.id}
                   product={product}
-                  onAdjust={adjustStock}
+                  status={statusOf(product)}
+                  onToggleDepleted={toggleDepleted}
                 />
               ))}
             </div>

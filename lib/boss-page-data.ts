@@ -2,21 +2,9 @@
  * Loaders for non-P0 Boss pages — API first, mock fallback.
  */
 import {
-  MENU_ITEMS,
-  MENU_CATEGORIES,
-  PRODUCTS,
-  PRODUCT_CATEGORIES,
-  PERSONEL_LIST,
-  SERVICE_CHANNELS,
   STOK_ITEMS,
   STOK_WAREHOUSES,
   STOK_KPI,
-  SAYIMLAR,
-  STOK_TRANSFERS,
-  FIRE_DATA,
-  CARILER,
-  LISANSLAR,
-  ACCOUNTS,
   PRODUCT_REPORT,
   SISTEM_CARDS,
   type MenuItem,
@@ -38,8 +26,6 @@ import {
   type SistemCard,
   type SahipAylik,
   type ZReport,
-  SAHIP_RAPORLAR,
-  Z_REPORTS,
 } from '@/lib/boss-mock'
 import {
   bossFetch,
@@ -187,20 +173,16 @@ function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: 
 }
 
 function toProduct(m: MenuItem & { sku: string }): Product {
-  const stock = m.tukendi ? 0 : m.stock ?? 20
-  const minStock = 5
-  let status: Product['status'] = 'normal'
-  if (stock === 0) status = 'tukendi'
-  else if (stock < minStock) status = 'dusuk'
+  // Gerçek stok miktarı API'de yok — sayı uydurma; yalnızca tükendi/satışta durumu
   return {
     id: m.id,
     name: m.name,
     category: m.category,
     sku: m.sku || m.id.slice(0, 8),
-    stock,
+    stock: null,
     unit: 'adet',
-    minStock,
-    status,
+    minStock: null,
+    status: m.tukendi ? 'tukendi' : 'normal',
     price: `₺${formatMoneyTR(m.price, m.price % 1 === 0 ? 0 : 2)}`,
   }
 }
@@ -218,15 +200,16 @@ export async function loadCatalogPage(): Promise<CatalogPageData> {
     'page:catalog',
     BOSS_TTL.definitions,
     async () => {
-      const fallback: CatalogPageData = {
-        items: MENU_ITEMS,
-        categories: MENU_CATEGORIES,
-        products: PRODUCTS,
-        productCategories: PRODUCT_CATEGORIES,
+      // Oturum yokken de mock menü gösterilmez — boş katalog
+      const empty: CatalogPageData = {
+        items: [],
+        categories: ['Tümü'],
+        products: [],
+        productCategories: ['Tümü'],
         source: 'mock',
       }
       const session = readNativeSession()
-      if (!session?.token) return fallback
+      if (!session?.token) return empty
 
       const res = await bossFetch<{ rows?: CatalogRow[]; total?: number }>(
         '/api/products/catalog/page',
@@ -466,7 +449,7 @@ async function loadStokHubUncached(): Promise<StokHubData> {
   const session = readNativeSession()
   if (!session?.token) return fallback
 
-  const [whRes, defRes, balRes, countsRes] = await Promise.all([
+  const [whRes, defRes, balRes, countsRes, salesRes] = await Promise.all([
     bossFetch<unknown>('/api/stock/warehouses'),
     bossFetch<{
       materials?: unknown[]
@@ -477,19 +460,27 @@ async function loadStokHubUncached(): Promise<StokHubData> {
     bossFetch<{ items?: unknown[]; rows?: unknown[] }>('/api/stock/inventory-counts', {
       query: { page: '1', pageSize: '20' },
     }),
+    // Bugünkü fire (zayi) tutarı — satış analizi özetindeki gerçek waste alanı
+    fetchSalesAnalysisTodayFull(),
   ])
 
-  if (!whRes.ok && !defRes.ok) return fallback
+  // Oturum varken API hatasında mock STOK_* gösterilmez — boş + hata durumu
+  if (!whRes.ok && !defRes.ok) {
+    return {
+      warehouses: [],
+      items: [],
+      kpi: { toplamDeger: '₺0', kritikAdet: 0, bugunFireTutar: '₺0', acikSayim: 0 },
+      source: 'api',
+    }
+  }
 
   const whRaw = Array.isArray(whRes.data)
     ? whRes.data
     : asList(asMap(whRes.data)?.items ?? asMap(whRes.data)?.warehouses)
-  const warehouses: StokWarehouse[] = whRaw.length
-    ? whRaw.map((w, i) => {
-        const row = asMap(w) ?? {}
-        return { id: str(row.id ?? row.code ?? i), name: str(row.name ?? row.code, `Depo ${i + 1}`) }
-      })
-    : STOK_WAREHOUSES
+  const warehouses: StokWarehouse[] = whRaw.map((w, i) => {
+    const row = asMap(w) ?? {}
+    return { id: str(row.id ?? row.code ?? i), name: str(row.name ?? row.code, `Depo ${i + 1}`) }
+  })
 
   const defaultWh = warehouses[0]?.id ?? 'w1'
   const balances = balRes.data?.balances ?? {}
@@ -499,31 +490,29 @@ async function loadStokHubUncached(): Promise<StokHubData> {
   const finished = asList(defRes.data?.finishedProducts)
   const defs = [...materials, ...semis, ...finished]
 
-  const items: StokItem[] = defs.length
-    ? defs.map((raw, i) => {
-        const row = asMap(raw) ?? {}
-        const id = str(row.id ?? row.code ?? i)
-        const code = str(row.code ?? row.id, id)
-        const qty = num(balances[code] ?? balances[id] ?? 0)
-        const minStock = num(row.minStock ?? row.minQty ?? 0)
-        let status: StokItem['status'] = 'normal'
-        if (qty <= 0) status = 'tukendi'
-        else if (minStock > 0 && qty < minStock) status = 'kritik'
-        const unitCost = num(row.unitCost ?? 0)
-        return {
-          id,
-          name: str(row.name, code),
-          code,
-          warehouseId: defaultWh,
-          stock: qty,
-          unit: formatStockUnit(row.unitName ?? row.unitSymbol ?? row.unit ?? row.unitId),
-          minStock: minStock || 1,
-          status,
-          lastMovement: '—',
-          value: `₺${formatMoneyTR(qty * unitCost)}`,
-        }
-      })
-    : STOK_ITEMS
+  const items: StokItem[] = defs.map((raw, i) => {
+    const row = asMap(raw) ?? {}
+    const id = str(row.id ?? row.code ?? i)
+    const code = str(row.code ?? row.id, id)
+    const qty = num(balances[code] ?? balances[id] ?? 0)
+    const minStock = num(row.minStock ?? row.minQty ?? 0)
+    let status: StokItem['status'] = 'normal'
+    if (qty <= 0) status = 'tukendi'
+    else if (minStock > 0 && qty < minStock) status = 'kritik'
+    const unitCost = num(row.unitCost ?? 0)
+    return {
+      id,
+      name: str(row.name, code),
+      code,
+      warehouseId: defaultWh,
+      stock: qty,
+      unit: formatStockUnit(row.unitName ?? row.unitSymbol ?? row.unit ?? row.unitId),
+      minStock: minStock || 1,
+      status,
+      lastMovement: '—',
+      value: `₺${formatMoneyTR(qty * unitCost)}`,
+    }
+  })
 
   const kritik = items.filter((i) => i.status === 'kritik' || i.status === 'tukendi').length
   const totalValue = items.reduce((a, i) => {
@@ -537,16 +526,21 @@ async function loadStokHubUncached(): Promise<StokHubData> {
     return st.includes('open') || st.includes('sayım') || st.includes('sayim') || st === 'in_progress'
   }).length
 
+  // Bugünkü fire: satış analizi özetindeki waste; hesaplanamıyorsa 0
+  const salesSummary = asMap(asMap(salesRes.data)?.summary) ?? {}
+  const bugunFire =
+    salesRes.ok ? num(salesSummary.waste ?? salesSummary.wasteAmount) : 0
+
   return {
     warehouses,
     items,
     kpi: {
       toplamDeger: `₺${formatMoneyTR(totalValue)}`,
       kritikAdet: kritik,
-      bugunFireTutar: STOK_KPI.bugunFireTutar,
-      acikSayim: acikSayim || STOK_KPI.acikSayim,
+      bugunFireTutar: `₺${formatMoneyTR(bugunFire)}`,
+      acikSayim,
     },
-    source: defRes.ok || whRes.ok ? 'api' : 'mock',
+    source: 'api',
   }
 }
 
@@ -653,63 +647,78 @@ export type FirePageData = {
   source: 'api' | 'mock'
 }
 
+function ymdDaysAgo(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export async function loadFirePage(): Promise<FirePageData> {
   const hub = await loadStokHub()
   const session = readNativeSession()
+  const emptyByPeriod: Record<FirePeriod, FireEntry[]> = {
+    'Bugün': [],
+    '7 Gün': [],
+    '30 Gün': [],
+  }
   if (!session?.token) {
-    return { byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] }, warehouses: hub.warehouses, source: 'mock' }
+    return { byPeriod: emptyByPeriod, warehouses: hub.warehouses, source: 'mock' }
   }
 
-  const day = todayYmd()
-  const res = await bossFetch<{ items?: unknown[]; rows?: unknown[] }>('/api/stock/movement-logs', {
-    query: { page: '1', pageSize: '80', type: 'waste', from: day },
+  // Fire / stok çıkış fişleri — cloud stock/document-logs (kind=outbound, createdAt aralığı)
+  const res = await bossFetch<{ items?: unknown[]; rows?: unknown[] }>(
+    '/api/stock/document-logs',
+    {
+      query: {
+        kind: 'outbound',
+        from: ymdDaysAgo(29),
+        to: todayYmd(),
+        page: '1',
+        pageSize: '100',
+      },
+    },
+  )
+  const raw = asList(res.data?.items ?? res.data?.rows)
+  if (!res.ok || !raw.length) {
+    return { byPeriod: emptyByPeriod, warehouses: hub.warehouses, source: 'api' }
+  }
+
+  const dayMs = 24 * 60 * 60 * 1000
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const start7 = startOfToday - 6 * dayMs
+  const start30 = startOfToday - 29 * dayMs
+
+  const mapped = raw.map((r, i) => {
+    const row = asMap(r) ?? {}
+    const detail = asMap(row.detail) ?? {}
+    const createdAt = str(row.createdAt ?? row.date)
+    const ts = Date.parse(createdAt)
+    const entry: FireEntry = {
+      id: str(row.id ?? i),
+      name: str(detail.exitTypeName ?? detail.documentNo ?? row.entityId, 'Stok çıkışı'),
+      qty: num(detail.rowCount ?? 1) || 1,
+      unit: 'kalem',
+      warehouseId: str(detail.warehouseId ?? hub.warehouses[0]?.id),
+      reason: str(detail.note ?? detail.exitTypeName, 'Stok çıkışı'),
+      amount: `₺${formatMoneyTR(Math.abs(num(detail.grandTotal ?? 0)))}`,
+      date: fmtDateTime(createdAt),
+    }
+    return { ts, entry }
   })
 
-  // Also try without type filter if empty
-  let raw = asList(res.data?.items ?? res.data?.rows)
-  if (!res.ok || !raw.length) {
-    const alt = await bossFetch<{ items?: unknown[]; rows?: unknown[] }>('/api/stock/document-logs', {
-      query: { page: '1', pageSize: '40' },
-    })
-    raw = asList(alt.data?.items ?? alt.data?.rows)
-  }
+  const within = (fromTs: number) =>
+    mapped
+      .filter((m) => Number.isFinite(m.ts) && m.ts >= fromTs)
+      .map((m) => m.entry)
 
-  if (!raw.length) {
-    return { byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] }, warehouses: hub.warehouses, source: 'api' }
-  }
-
-  const entries: FireEntry[] = raw
-    .map((r, i) => {
-      const row = asMap(r) ?? {}
-      const type = str(row.type ?? row.docType ?? row.reason).toLowerCase()
-      const looksWaste =
-        type.includes('waste') ||
-        type.includes('fire') ||
-        type.includes('spoil') ||
-        type.includes('loss')
-      if (!looksWaste && raw.length > 10) return null
-      return {
-        id: str(row.id ?? i),
-        name: str(row.itemName ?? row.name ?? row.title, 'Kalem'),
-        qty: num(row.qty ?? row.quantity ?? Math.abs(num(row.signedQty))),
-          unit: formatStockUnit(row.unitName ?? row.unitSymbol ?? row.unit ?? row.unitId),
-        warehouseId: str(row.warehouseId ?? hub.warehouses[0]?.id),
-        reason: str(row.reason ?? row.note ?? row.typeLabel, 'Fire'),
-        amount: `₺${formatMoneyTR(Math.abs(num(row.amount ?? row.cost ?? 0)))}`,
-        date: fmtDateTime(row.createdAt ?? row.date),
-      } satisfies FireEntry
-    })
-    .filter(Boolean) as FireEntry[]
-
-  if (!entries.length) {
-    return { byPeriod: FIRE_DATA, warehouses: hub.warehouses, source: hub.source }
-  }
-
+  // Her dönem gerçek tarihe göre filtrelenir; boşsa boş kalır (mock yok)
   return {
     byPeriod: {
-      Bugün: entries,
-      '7 Gün': entries,
-      '30 Gün': entries,
+      'Bugün': within(startOfToday),
+      '7 Gün': within(start7),
+      '30 Gün': within(start30),
     },
     warehouses: hub.warehouses,
     source: 'api',
@@ -797,7 +806,8 @@ export async function loadOnlineOrdersPage(): Promise<OrdersPageData> {
   const res = await bossFetch<{ rows?: unknown[]; items?: unknown[] }>('/api/sales/online-orders', {
     query: { page: '1', pageSize: '40' },
   })
-  if (!res.ok) return { orders: [], source: 'mock' }
+  // API hatası mock değildir — boş liste + 'api' (hata/boş durum)
+  if (!res.ok) return { orders: [], source: 'api' }
   const raw = asList(res.data?.rows ?? res.data?.items)
   return { orders: mapOrderRows(raw), source: 'api' }
 }
@@ -810,7 +820,8 @@ export async function loadQrOrdersPage(): Promise<OrdersPageData> {
     '/api/sales/qr-menu-orders',
     { query: { page: '1', pageSize: '40' } },
   )
-  if (!res.ok) return { orders: [], source: 'mock' }
+  // API hatası mock değildir — boş liste + 'api' (hata/boş durum)
+  if (!res.ok) return { orders: [], source: 'api' }
   const raw = asList(res.data?.rows ?? res.data?.items)
   return { orders: mapOrderRows(raw), source: 'api' }
 }
@@ -901,7 +912,8 @@ export async function loadSalonPage(): Promise<SistemSalonData> {
 
       const res = await bossFetch<unknown>('/api/salons')
       if (!res.ok || res.data == null) {
-        return { salons: [], totalTables: 0, source: 'mock' as const }
+        // API hatası mock değildir — boş + 'api'
+        return { salons: [], totalTables: 0, source: 'api' as const }
       }
 
       const raw = Array.isArray(res.data)
@@ -995,11 +1007,12 @@ export async function loadUzaktanPage(): Promise<UzaktanPageData> {
 
   const res = await bossFetch<Record<string, unknown>>('/api/sales/hardware-bridge/status')
   if (!res.ok || !res.data) {
+    // API hatası mock değildir — hata durumu detayıyla 'api'
     return {
       bridgeOnline: false,
       bridgeLabel: 'Köprü yanıt vermedi',
       detail: res.error || 'Durum alınamadı',
-      source: 'mock',
+      source: 'api',
     }
   }
 
@@ -1132,36 +1145,71 @@ export type LisanslarPageData = {
   source: 'api' | 'mock'
 }
 
+/** Cloud license-status yanıtı (stock + boss aynı şekil). */
+type LicenseStatusApi = {
+  ok?: boolean
+  productNameTr?: string | null
+  productNameEn?: string | null
+  validUntil?: string | null
+}
+
+function lisansFromStatus(
+  id: string,
+  fallbackName: string,
+  description: string,
+  d: LicenseStatusApi,
+): Lisans {
+  const licensed = d.ok === true
+  const until = str(d.validUntil) ? new Date(str(d.validUntil)) : null
+  const validTime = until && !Number.isNaN(until.getTime()) ? until.getTime() : null
+  const daysLeft =
+    licensed && validTime != null
+      ? Math.max(0, Math.ceil((validTime - Date.now()) / 86_400_000))
+      : null
+  const status: Lisans['status'] = !licensed
+    ? 'yok'
+    : daysLeft != null && daysLeft <= 30
+      ? 'yaklasıyor'
+      : 'aktif'
+  return {
+    id,
+    name: str(d.productNameTr ?? d.productNameEn, fallbackName),
+    description,
+    status,
+    // Sahte bitiş tarihi yazılmaz — yalnızca API'den gelen validUntil
+    expiresAt:
+      licensed && validTime != null
+        ? new Date(validTime).toLocaleDateString('tr-TR', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          })
+        : null,
+    daysLeft,
+  }
+}
+
 export async function loadLisanslarPage(): Promise<LisanslarPageData> {
   const session = readNativeSession()
   if (!session?.token) return { list: [], source: 'mock' }
 
-  const [stockLic, bridge] = await Promise.all([
-    bossFetch<Record<string, unknown>>('/api/stock/license-status'),
-    bossFetch<Record<string, unknown>>('/api/sales/hardware-bridge/status'),
+  // Yalnızca gerçek lisans API'lerinden satır üretilir; API'de olmayan ürün için satır yok
+  const [stockLic, bossLic] = await Promise.all([
+    bossFetch<LicenseStatusApi>('/api/stock/license-status'),
+    bossFetch<LicenseStatusApi>('/api/boss/license-status'),
   ])
 
-  if (!stockLic.ok && !bridge.ok) return { list: [], source: 'api' }
-
-  const list: Lisans[] = LISANSLAR.map((base) => {
-    const name = base.name.toLowerCase()
-    if (name.includes('stok')) {
-      const ok = stockLic.data?.licensed === true || stockLic.data?.active === true || stockLic.ok
-      return {
-        ...base,
-        status: ok ? 'aktif' : 'yok',
-        daysLeft: ok ? base.daysLeft : null,
-      }
-    }
-    if (name.includes('online')) {
-      const online = bridge.data?.online === true || bridge.data?.connected === true
-      return {
-        ...base,
-        status: online ? 'aktif' : base.status,
-      }
-    }
-    return base
-  })
+  const list: Lisans[] = []
+  if (stockLic.ok && stockLic.data) {
+    list.push(
+      lisansFromStatus('stok', 'Stok Takip', 'Gelişmiş depo ve fire yönetimi', stockLic.data),
+    )
+  }
+  if (bossLic.ok && bossLic.data) {
+    list.push(
+      lisansFromStatus('boss', 'Restroid Boss', 'Patron uygulaması lisansı', bossLic.data),
+    )
+  }
 
   return { list, source: 'api' }
 }
@@ -1374,7 +1422,11 @@ export async function loadRaporlarPage(): Promise<RaporlarPageData> {
   ])
 
   if (!today.ok && !week.ok && !month.ok) {
-    return { productByPeriod: PRODUCT_REPORT, source: 'mock' }
+    // API hatasında örnek rapor gösterilmez — boş + hata durumu
+    return {
+      productByPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] },
+      source: 'api',
+    }
   }
 
   // Oturum + API varken örnek ürün raporu gösterme — boş liste doğru durum.

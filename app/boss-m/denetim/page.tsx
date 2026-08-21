@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
 import type { AlertFilter, AuditAlert } from '@/lib/boss-mock'
 import { loadDenetimDashboard } from '@/lib/boss-p0-data'
-import { DENETIM_FILTERS } from '@/lib/boss-notifications'
+import {
+  DENETIM_FILTERS,
+  mapNotificationToAuditAlert,
+  type BossNotificationApiRow,
+} from '@/lib/boss-notifications'
 import { bossFetch } from '@/lib/boss-api'
 import { invalidateBossCache } from '@/lib/boss-page-cache'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -19,19 +23,53 @@ function severityCount(alerts: AuditAlert[], severity: AuditAlert['severity']) {
 
 export default function BossMDenetimPage() {
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('Tümü')
-  const { data, setData, loading, reload } = useBossLoad(
+  const { data, setData, loading, reload, reloadSoft } = useBossLoad(
     loadDenetimDashboard,
-    { alerts: [], source: 'mock' },
+    { alerts: [], nextCursor: null, source: 'mock' },
     { cacheKey: 'page:denetim', ttlMs: 20_000 },
   )
   const alerts = data.alerts
   const source = data.source
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  // Sayfa öne gelince bayat veriyi arka planda yenile (poll yok — yalnızca görünürlük olayı)
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void reloadSoft()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [reloadSoft])
+
+  async function loadMore() {
+    const cursor = data.nextCursor
+    if (!cursor || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const res = await bossFetch<{
+        items?: BossNotificationApiRow[]
+        nextCursor?: string | null
+      }>('/api/boss/notifications', { query: { limit: '50', cursor } })
+      if (!res.ok) return
+      const items = Array.isArray(res.data?.items) ? res.data!.items! : []
+      const mapped = items.map((raw, i) => mapNotificationToAuditAlert(raw, alerts.length + i))
+      setData({
+        ...data,
+        alerts: [...alerts, ...mapped],
+        nextCursor: typeof res.data?.nextCursor === 'string' ? res.data.nextCursor : null,
+      })
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   async function markAllRead() {
     const unread = alerts.filter((a) => a.unread)
     if (!unread.length) return
     await bossFetch('/api/boss/notifications/read-all', { method: 'POST' })
+    // Ana sayfa (api:boss-notifications:8) ve denetim (…:50) bildirim cache'leri
     invalidateBossCache('api:boss-notifications:')
+    invalidateBossCache('page:denetim')
     setData({
       ...data,
       alerts: alerts.map((a) => ({ ...a, unread: false })),
@@ -42,6 +80,9 @@ export default function BossMDenetimPage() {
     const row = alerts.find((a) => a.id === id)
     if (!row?.unread) return
     await bossFetch(`/api/boss/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' })
+    // Ana sayfa (api:boss-notifications:8) ve denetim (…:50) bildirim cache'leri
+    invalidateBossCache('api:boss-notifications:')
+    invalidateBossCache('page:denetim')
     setData({
       ...data,
       alerts: alerts.map((a) => (a.id === id ? { ...a, unread: false } : a)),
@@ -209,6 +250,17 @@ export default function BossMDenetimPage() {
               </div>
             </button>
           ))}
+
+          {data.nextCursor && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="mt-1 px-4 py-3 rounded-2xl border border-border bg-card text-xs font-semibold text-muted-foreground active:bg-surface-2 disabled:opacity-60"
+            >
+              {loadingMore ? 'Yükleniyor…' : 'Daha fazla'}
+            </button>
+          )}
         </div>
       )}
     </main>

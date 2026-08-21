@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
-  ShoppingBag, Package, Users, BarChart2, Clock,
+  ShoppingBag, Package, Users, BarChart2,
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { SAHIP_RAPORLAR } from '@/lib/boss-mock'
+import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadSahipPage } from '@/lib/boss-page-data'
 import { cn } from '@/lib/utils'
@@ -96,15 +96,16 @@ function SectionCard({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function BossMSahipRaporPage() {
+  // Mock ay fallback'i yok — yalnızca API'den gelen dönemler
   const { data: page, loading } = useBossLoad(loadSahipPage, {
-    months: SAHIP_RAPORLAR,
+    months: [],
     source: 'mock',
   })
-  const months = page.months.length ? page.months : SAHIP_RAPORLAR
+  const months = page.months
   const [monthIdx, setMonthIdx] = useState(0)
-  const data = months[Math.min(monthIdx, months.length - 1)] ?? months[0]
+  const data = months.length ? months[Math.min(monthIdx, months.length - 1)] : null
 
-  // Derive int values for sparkline (ciro across months, newest last)
+  // Trend gerçek dönem verisinden (en yeni sona gelecek şekilde)
   const ciroValues = [...months]
     .reverse()
     .map((r) => parseInt(r.ciro.replace(/\D/g, ''), 10))
@@ -118,87 +119,100 @@ export default function BossMSahipRaporPage() {
       <BossMPageHeader title="Sahip Raporu" showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
-        {loading && (
-          <div className="mb-4 h-10 bg-surface-2 rounded-xl animate-pulse" />
+        {loading ? (
+          <div className="flex flex-col gap-3 mt-1 animate-pulse">
+            <div className="h-10 bg-surface-2 rounded-xl" />
+            <div className="h-24 bg-surface-2 rounded-2xl" />
+            <div className="h-24 bg-surface-2 rounded-2xl" />
+          </div>
+        ) : !data ? (
+          <BossMEmptyState
+            icon={BarChart2}
+            title="Rapor verisi yok"
+            description="Bu dönem için sahip raporu alınamadı."
+          />
+        ) : (
+          <>
+            {/* Month picker */}
+            <div className="flex items-center gap-3 mb-5 mt-1">
+              <button
+                onClick={() => setMonthIdx((v) => Math.min(v + 1, months.length - 1))}
+                disabled={monthIdx >= months.length - 1}
+                className="w-11 h-11 flex items-center justify-center rounded-xl bg-card border border-border text-muted-foreground disabled:opacity-30 active:bg-surface-2 transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <p className="flex-1 text-center text-base font-bold text-foreground">{data.month}</p>
+              <button
+                onClick={() => setMonthIdx((v) => Math.max(v - 1, 0))}
+                disabled={monthIdx <= 0}
+                className="w-11 h-11 flex items-center justify-center rounded-xl bg-card border border-border text-muted-foreground disabled:opacity-30 active:bg-surface-2 transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
+            {/* KPI stack */}
+            <section className="flex flex-col gap-3 mb-6">
+              <KpiCard
+                label="Aylık Ciro"
+                value={data.ciro}
+                delta={data.ciroDelta}
+                accent="text-foreground"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard
+                  label="Maliyet"
+                  value={data.maliyet}
+                  sub={`Oran: ${data.maliyetRatio}`}
+                  accent="text-warning"
+                />
+                <KpiCard
+                  label="Kâr (tahmini)"
+                  value={data.karProxy}
+                  accent="text-success"
+                />
+              </div>
+              <KpiCard
+                label="Personel Gideri"
+                value={data.personelGider}
+                sub="Brüt maaş tahmini"
+                accent="text-info"
+              />
+            </section>
+
+            {/* Trend charts — yalnızca birden çok gerçek dönem varsa */}
+            {months.length > 1 && (
+              <section className="mb-6">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+                  Trend ({months.length} ay)
+                </p>
+                <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-5">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Ciro</p>
+                    <MiniBarChart values={ciroValues} color="hsl(var(--primary))" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Kâr Tahmini</p>
+                    <MiniBarChart values={karValues} color="hsl(var(--success))" />
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Section list */}
+            <section>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+                Detay Bölümler
+              </p>
+              <div className="flex flex-col gap-2">
+                <SectionCard icon={ShoppingBag} title="Satış Analizi"   detail="Kanal ve kategori bazlı satış dağılımı" comingSoon />
+                <SectionCard icon={Package}     title="Stok Özeti"      detail="Fire, devir ve kritik ürün raporu"     comingSoon />
+                <SectionCard icon={Users}       title="Personel Özeti"  detail="Ciro katkısı ve iptal karşılaştırması" comingSoon />
+              </div>
+            </section>
+          </>
         )}
-
-        {/* Month picker */}
-        <div className="flex items-center gap-3 mb-5 mt-1">
-          <button
-            onClick={() => setMonthIdx((v) => Math.min(v + 1, months.length - 1))}
-            disabled={monthIdx >= months.length - 1}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-card border border-border text-muted-foreground disabled:opacity-30 active:bg-surface-2 transition-colors"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <p className="flex-1 text-center text-base font-bold text-foreground">{data.month}</p>
-          <button
-            onClick={() => setMonthIdx((v) => Math.max(v - 1, 0))}
-            disabled={monthIdx <= 0}
-            className="w-11 h-11 flex items-center justify-center rounded-xl bg-card border border-border text-muted-foreground disabled:opacity-30 active:bg-surface-2 transition-colors"
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        {/* KPI stack */}
-        <section className="flex flex-col gap-3 mb-6">
-          <KpiCard
-            label="Aylık Ciro"
-            value={data.ciro}
-            delta={data.ciroDelta}
-            accent="text-foreground"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <KpiCard
-              label="Maliyet"
-              value={data.maliyet}
-              sub={`Oran: ${data.maliyetRatio}`}
-              accent="text-warning"
-            />
-            <KpiCard
-              label="Kâr (tahmini)"
-              value={data.karProxy}
-              accent="text-success"
-            />
-          </div>
-          <KpiCard
-            label="Personel Gideri"
-            value={data.personelGider}
-            sub="Brüt maaş tahmini"
-            accent="text-info"
-          />
-        </section>
-
-        {/* Trend charts */}
-        <section className="mb-6">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Trend ({SAHIP_RAPORLAR.length} ay)
-          </p>
-          <div className="bg-card border border-border rounded-2xl p-4 flex flex-col gap-5">
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Ciro</p>
-              <MiniBarChart values={ciroValues} color="hsl(var(--primary))" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">Kâr Tahmini</p>
-              <MiniBarChart values={karValues} color="hsl(var(--success))" />
-            </div>
-          </div>
-        </section>
-
-        {/* Section list */}
-        <section>
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Detay Bölümler
-          </p>
-          <div className="flex flex-col gap-2">
-            <SectionCard icon={ShoppingBag} title="Satış Analizi"   detail="Kanal ve kategori bazlı satış dağılımı" comingSoon />
-            <SectionCard icon={Package}     title="Stok Özeti"      detail="Fire, devir ve kritik ürün raporu"     comingSoon />
-            <SectionCard icon={Users}       title="Personel Özeti"  detail="Ciro katkısı ve iptal karşılaştırması" comingSoon />
-          </div>
-        </section>
-
       </div>
     </main>
   )

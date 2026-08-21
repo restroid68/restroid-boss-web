@@ -6,7 +6,7 @@ import { Check, Tag, Box } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMMoneyInput } from '@/components/boss/BossMMoneyInput'
-import { MENU_ITEMS } from '@/lib/boss-mock'
+import type { MenuItem } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import {
@@ -22,16 +22,7 @@ import { formatMoneyTR, parseMoneyTR, sanitizeMoneyTyping } from '@/lib/boss-mon
 import { BossMSwitch } from '@/components/boss/BossMSwitch'
 import { cn } from '@/lib/utils'
 
-type CatalogMenuItem = (typeof MENU_ITEMS)[number] & {
-  sku?: string
-  code?: string
-  priceByService?: boolean
-  servicePrices?: Record<string, { sale: string; original: string }>
-  taxRateId?: string
-  taxLabel?: string
-  productionByService?: boolean
-  productionAreasByService?: Record<string, string[]>
-}
+type CatalogMenuItem = MenuItem
 
 const CHANNEL_ORDER = [
   'dinein',
@@ -72,7 +63,7 @@ export default function BossMMenuDetailPage({ params }: { params: Promise<{ id: 
   const { keyboardOpen } = useBossKeyboard()
 
   const { data, loading } = useBossLoad(loadCatalogPage, {
-    items: MENU_ITEMS,
+    items: [],
     categories: ['Tümü'],
     products: [],
     productCategories: ['Tümü'],

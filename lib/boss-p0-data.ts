@@ -1,7 +1,5 @@
 import {
   CHANNEL_CARDS,
-  ACCOUNTS,
-  LEDGER_ENTRIES,
   type KpiMetric,
   type ChannelCard,
   type AlertRow,
@@ -48,6 +46,8 @@ export type FinansDashboardData = {
 
 export type DenetimDashboardData = {
   alerts: AuditAlert[]
+  /** Sunucu cursor'ı — varsa «Daha fazla» ile devamı çekilebilir */
+  nextCursor: string | null
   source: 'api' | 'mock'
 }
 
@@ -174,7 +174,8 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
 
   const kpis: KpiMetric[] = [
     { label: 'Günlük Ciro', value: formatMoneyTR(ciro), delta: 0, unit: '₺' },
-    { label: 'Ödenen', value: formatMoneyTR(paid || ciro), delta: 0, unit: '₺' },
+    // Gerçek tahsil edilen tutar; API'de yoksa 0 — ciro ile doldurulmaz
+    { label: 'Ödenen', value: formatMoneyTR(paid), delta: 0, unit: '₺' },
     { label: 'Açık', value: formatMoneyTR(openAmt), delta: 0, unit: '₺' },
     { label: 'Konuk', value: String(Math.max(0, Math.round(guests))), delta: 0, unit: '' },
   ]
@@ -234,9 +235,11 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
       variant: 'warning',
     },
     {
-      key: 'indirim',
+      // API'de yalnızca ikram (complimentaryTotal) alanı var; ayrı indirim alanı yok.
+      // İndirim verisi gelmediği için indirim kartı gösterilmez.
+      key: 'ikram',
       label: 'İkram',
-      value: `₺${formatMoneyTR(num(summary.complimentaryTotal ?? summary.discountAmount))}`,
+      value: `₺${formatMoneyTR(num(summary.complimentaryTotal))}`,
       variant: 'warning',
     },
   ]
@@ -372,7 +375,8 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
       },
       {
         label: 'Tahsilatlar',
-        value: `₺${formatMoneyTR(paid || ciro)}`,
+        // Gerçek tahsilat; yoksa 0 — ciro ile doldurulmaz
+        value: `₺${formatMoneyTR(paid)}`,
         sub: 'bugün',
         variant: 'success',
       },
@@ -393,27 +397,29 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
 
 export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
   const session = readNativeSession()
-  if (!session?.token) return { alerts: [], source: 'mock' }
+  if (!session?.token) return { alerts: [], nextCursor: null, source: 'mock' }
 
   try {
     const inbox = await withBossCache(
       'api:boss-notifications:50',
       BOSS_TTL.live,
       () =>
-        bossFetch<{ items?: BossNotificationApiRow[] }>('/api/boss/notifications', {
-          query: { limit: '50' },
-        }),
+        bossFetch<{ items?: BossNotificationApiRow[]; nextCursor?: string | null }>(
+          '/api/boss/notifications',
+          { query: { limit: '50' } },
+        ),
       { isCacheable: (r) => r.ok },
     )
-    if (!inbox.ok) return { alerts: [], source: 'api' }
+    if (!inbox.ok) return { alerts: [], nextCursor: null, source: 'api' }
 
     const items = Array.isArray(inbox.data?.items) ? inbox.data!.items! : []
     return {
       alerts: items.map((raw, i) => mapNotificationToAuditAlert(raw, i)),
+      nextCursor: typeof inbox.data?.nextCursor === 'string' ? inbox.data.nextCursor : null,
       source: 'api',
     }
   } catch {
-    return { alerts: [], source: 'api' }
+    return { alerts: [], nextCursor: null, source: 'api' }
   }
 }
 
@@ -441,12 +447,9 @@ function accountingTypeLabelTR(type: string): string {
 
 export async function loadKasaDashboard(): Promise<KasaDashboardData> {
   const session = readNativeSession()
-  const fallback: KasaDashboardData = {
-    accounts: ACCOUNTS,
-    ledger: LEDGER_ENTRIES,
-    source: 'mock',
-  }
-  if (!session?.token) return fallback
+  // Oturum yokken örnek hesap/hareket gösterme — boş liste ('mock' = önizleme,
+  // cache'lenmez; gerçek veri değildir)
+  if (!session?.token) return { accounts: [], ledger: [], source: 'mock' }
 
   try {
   const [meta, tx] = await Promise.all([
@@ -519,14 +522,15 @@ export async function loadKasaDashboard(): Promise<KasaDashboardData> {
     }
   })
 
-  // Oturum varken örnek (mock) hesap/hareket gösterme — boş liste doğru durum
+  // Oturum varken örnek (mock) hesap/hareket gösterme — boş liste doğru durum.
+  // API hatasında da veri boş ama source 'api' kalır (mock veri dönmüyoruz).
   return {
     accounts,
     ledger: meta.ok || tx.ok ? ledger : [],
-    source: meta.ok || tx.ok ? 'api' : 'mock',
+    source: 'api',
   }
   } catch {
-    return { accounts: [], ledger: [], source: 'mock' }
+    return { accounts: [], ledger: [], source: 'api' }
   }
 }
 

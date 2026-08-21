@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { Flame, Package, Warehouse, StickyNote, CalendarDays } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { STOK_WAREHOUSES } from '@/lib/boss-mock'
 import type { FirePeriod, FireEntry, StokWarehouse } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadFirePage } from '@/lib/boss-page-data'
+import { formatMoneyTR, parseMoneyTR } from '@/lib/boss-money'
 import { cn } from '@/lib/utils'
 
 function warehouseName(id: string, warehouses: StokWarehouse[]) {
@@ -17,11 +17,9 @@ function warehouseName(id: string, warehouses: StokWarehouse[]) {
 const PERIODS: FirePeriod[] = ['Bugün', '7 Gün', '30 Gün']
 
 function totalAmount(entries: FireEntry[]): string {
-  const total = entries.reduce((sum, e) => {
-    const num = parseFloat(e.amount.replace('₺', '').replace(',', '.')) || 0
-    return sum + num
-  }, 0)
-  return `₺${total.toLocaleString('tr-TR')}`
+  // TR para biçimi: binlik nokta, ondalık virgül (₺1.234,56) — parseMoneyTR doğru çözer
+  const total = entries.reduce((sum, e) => sum + parseMoneyTR(e.amount), 0)
+  return `₺${formatMoneyTR(total)}`
 }
 
 function FireKpiStrip({ entries }: { entries: FireEntry[] }) {
@@ -89,7 +87,7 @@ function FireRow({ entry, warehouses }: { entry: FireEntry; warehouses: StokWare
 export default function BossMStokFirePage() {
   const { data, loading } = useBossLoad(loadFirePage, {
     byPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] },
-    warehouses: STOK_WAREHOUSES,
+    warehouses: [],
     source: 'mock',
   })
   const [period, setPeriod] = useState<FirePeriod>('Bugün')

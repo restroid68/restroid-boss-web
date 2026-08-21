@@ -2,7 +2,6 @@
 
 import { CheckCircle2, AlertTriangle, XCircle, Phone } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { LISANSLAR } from '@/lib/boss-mock'
 import type { LisansStatus, Lisans } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadLisanslarPage } from '@/lib/boss-page-data'
@@ -108,7 +107,7 @@ function LisansCard({ lisans }: { lisans: Lisans }) {
 
 export default function BossMListanslarPage() {
   const { data, loading } = useBossLoad(loadLisanslarPage, {
-    list: LISANSLAR,
+    list: [],
     source: 'mock',
   })
 
@@ -151,11 +150,23 @@ export default function BossMListanslarPage() {
               </div>
             )}
 
-            <div className="flex flex-col gap-3">
-              {sorted.map((l) => (
-                <LisansCard key={l.id} lisans={l} />
-              ))}
-            </div>
+            {sorted.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-12 px-4 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-surface-2 flex items-center justify-center text-muted-foreground">
+                  <XCircle size={22} strokeWidth={1.5} />
+                </div>
+                <p className="text-sm font-medium text-foreground">Lisans bilgisi alınamadı</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Kayıt bulunamadı.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {sorted.map((l) => (
+                  <LisansCard key={l.id} lisans={l} />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

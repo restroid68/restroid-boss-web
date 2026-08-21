@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { REPORT_CARDS, PRODUCT_REPORT } from '@/lib/boss-mock'
-import type { ReportPeriod } from '@/lib/boss-mock'
+import { REPORT_CARDS } from '@/lib/boss-mock'
+import type { ReportPeriod, ProductRow } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadRaporlarPage } from '@/lib/boss-page-data'
 import { cn } from '@/lib/utils'
@@ -27,7 +27,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 const PERIODS: ReportPeriod[] = ['Bugün', '7 Gün', '30 Gün']
 
-function ProductReportList({ rows }: { rows: typeof PRODUCT_REPORT['Bugün'] }) {
+function ProductReportList({ rows }: { rows: ProductRow[] }) {
   return (
     <div className="flex flex-col divide-y divide-border">
       {rows.map((row) => {
@@ -61,7 +61,7 @@ function ProductReportList({ rows }: { rows: typeof PRODUCT_REPORT['Bugün'] }) 
 
 export default function BossMRaporlarPage() {
   const { data, loading } = useBossLoad(loadRaporlarPage, {
-    productByPeriod: PRODUCT_REPORT,
+    productByPeriod: { 'Bugün': [], '7 Gün': [], '30 Gün': [] },
     source: 'mock',
   })
   const [openReport, setOpenReport] = useState<string | null>(null)
@@ -134,6 +134,10 @@ export default function BossMRaporlarPage() {
                 <div key={i} className="h-12 bg-surface-2 rounded-xl" />
               ))}
             </div>
+          ) : rows.length === 0 ? (
+            <p className="px-4 pb-5 pt-1 text-center text-xs text-muted-foreground">
+              Kayıt bulunamadı.
+            </p>
           ) : (
             <ProductReportList rows={rows} />
           )}

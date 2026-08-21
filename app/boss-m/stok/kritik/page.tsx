@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
-import { STOK_ITEMS, STOK_WAREHOUSES } from '@/lib/boss-mock'
 import type { StokItem, StokWarehouse } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadStokHub } from '@/lib/boss-page-data'
@@ -191,8 +190,8 @@ function KritikPageInner() {
   const { data, loading } = useBossLoad(
     loadStokHub,
     {
-      warehouses: STOK_WAREHOUSES,
-      items: STOK_ITEMS,
+      warehouses: [],
+      items: [],
       kpi: { toplamDeger: '—', kritikAdet: 0, bugunFireTutar: '—', acikSayim: 0 },
       source: 'mock',
     },
