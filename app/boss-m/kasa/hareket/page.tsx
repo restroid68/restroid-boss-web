@@ -24,9 +24,10 @@ import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import {
   loadAccountsPage,
   loadExpenseCategories,
+  flattenExpenseCategoryOptions,
+  insertExpenseCategoryChild,
   postCashMovement,
   createExpenseCategoryLookup,
-  createExpenseSubcategoryLookup,
   createFinanceAccount,
   type ExpenseCategoryOption,
 } from '@/lib/boss-page-data'
@@ -73,8 +74,8 @@ export default function BossMHareketPage() {
   const [categories, setCategories] = useState<ExpenseCategoryOption[]>([])
   const [catId, setCatId] = useState('')
   const [catLabel, setCatLabel] = useState('')
-  const [subId, setSubId] = useState('')
-  const [subLabel, setSubLabel] = useState('')
+  const [childDraft, setChildDraft] = useState('')
+  const [childBusy, setChildBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -86,20 +87,13 @@ export default function BossMHareketPage() {
   const isTransfer = type === 'transfer'
   const isExpense = type === 'gider'
 
-  const catItems = useMemo(
-    () => categories.map((c) => ({ id: c.id, label: c.name })),
-    [categories],
-  )
-  const subItems = useMemo(() => {
-    const cat = categories.find((c) => c.id === catId)
-    return (cat?.subcategories ?? []).map((s) => ({ id: s.id, label: s.name }))
-  }, [categories, catId])
+  const catItems = useMemo(() => flattenExpenseCategoryOptions(categories), [categories])
 
   const canSave =
     parseMoneyTR(rawAmount) > 0 &&
     !!accountId &&
     !saving &&
-    (!isExpense || (!!catId && !!subId)) &&
+    (!isExpense || !!catId) &&
     (!isTransfer || (!!targetId && targetId !== accountId))
 
   useEffect(() => {
@@ -136,9 +130,7 @@ export default function BossMHareketPage() {
       note: note || undefined,
       targetAccountId: type === 'transfer' ? targetId : undefined,
       expenseCategoryId: isExpense ? catId : undefined,
-      expenseSubcategoryId: isExpense ? subId : undefined,
       expenseCategoryName: isExpense ? catLabel || undefined : undefined,
-      expenseSubcategoryName: isExpense ? subLabel || undefined : undefined,
     })
     setSaving(false)
     if (!result.ok) {
@@ -341,12 +333,10 @@ export default function BossMHareketPage() {
               items={catItems}
               valueId={catId}
               valueLabel={catLabel}
-              placeholder="Kategori ara veya ekle"
+              placeholder="Kategori ara veya kök ekle"
               onSelect={(item) => {
                 setCatId(item.id)
                 setCatLabel(item.label)
-                setSubId('')
-                setSubLabel('')
               }}
               onCreate={async (name) => {
                 const created = await createExpenseCategoryLookup(name)
@@ -356,45 +346,52 @@ export default function BossMHareketPage() {
                 }
                 setCategories((prev) => [
                   ...prev,
-                  { id: created.id, name: created.label, subcategories: [] },
+                  { id: created.id, name: created.label, children: [], subcategories: [] },
                 ])
                 return created
               }}
             />
-            <BossMSearchCreate
-              label="Gider alt kategorisi"
-              items={subItems}
-              valueId={subId}
-              valueLabel={subLabel}
-              placeholder={catId ? 'Alt kategori ara veya ekle' : 'Önce kategori seçin'}
-              disabled={!catId}
-              onSelect={(item) => {
-                setSubId(item.id)
-                setSubLabel(item.label)
-              }}
-              onCreate={async (name) => {
-                if (!catId) return null
-                const created = await createExpenseSubcategoryLookup(name, catId)
-                if (!created) {
-                  setSaveError('Alt kategori eklenemedi')
-                  return null
-                }
-                setCategories((prev) =>
-                  prev.map((c) =>
-                    c.id === catId
-                      ? {
-                          ...c,
-                          subcategories: [
-                            ...c.subcategories,
-                            { id: created.id, name: created.label },
-                          ],
-                        }
-                      : c,
-                  ),
-                )
-                return created
-              }}
-            />
+            {catId ? (
+              <div className="flex gap-2">
+                <input
+                  value={childDraft}
+                  onChange={(e) => setChildDraft(e.target.value)}
+                  placeholder="Alt kategori adı"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-border bg-card/90 px-3 text-sm text-foreground placeholder:text-muted-foreground"
+                />
+                <button
+                  type="button"
+                  disabled={!childDraft.trim() || childBusy}
+                  onClick={() => {
+                    void (async () => {
+                      const name = childDraft.trim()
+                      if (!name || !catId) return
+                      setChildBusy(true)
+                      const created = await createExpenseCategoryLookup(name, catId)
+                      setChildBusy(false)
+                      if (!created) {
+                        setSaveError('Alt kategori eklenemedi')
+                        return
+                      }
+                      const child: ExpenseCategoryOption = {
+                        id: created.id,
+                        name,
+                        children: [],
+                        subcategories: [],
+                      }
+                      setCategories((prev) => insertExpenseCategoryChild(prev, catId, child))
+                      setCatId(created.id)
+                      setCatLabel(catLabel ? `${catLabel} → ${name}` : name)
+                      setChildDraft('')
+                    })()
+                  }}
+                  className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-primary/35 bg-primary/10 px-3 text-sm font-semibold text-primary disabled:opacity-40"
+                >
+                  <Plus size={16} />
+                  Alt ekle
+                </button>
+              </div>
+            ) : null}
           </section>
         )}
 

@@ -1255,32 +1255,75 @@ export async function loadAccountsPage(): Promise<AccountsPageData> {
 export type ExpenseCategoryOption = {
   id: string
   name: string
+  parentId?: string | null
+  children: ExpenseCategoryOption[]
   subcategories: { id: string; name: string }[]
+}
+
+function mapExpenseCategoryNode(raw: unknown): ExpenseCategoryOption | null {
+  const row = asMap(raw) ?? {}
+  const id = str(row.id)
+  if (!id) return null
+  const nestedSrc = Array.isArray(row.children) && row.children.length > 0 ? row.children : row.subcategories
+  const children = asList(nestedSrc)
+    .map(mapExpenseCategoryNode)
+    .filter((x): x is ExpenseCategoryOption => Boolean(x))
+  return {
+    id,
+    name: str(row.name, 'Kategori'),
+    parentId: row.parentId == null || row.parentId === '' ? null : str(row.parentId),
+    children,
+    subcategories: children.map((c) => ({ id: c.id, name: c.name })),
+  }
+}
+
+export function flattenExpenseCategoryOptions(
+  cats: ExpenseCategoryOption[],
+  prefix = '',
+): Array<{ id: string; label: string }> {
+  const out: Array<{ id: string; label: string }> = []
+  for (const c of cats) {
+    const label = prefix ? `${prefix} → ${c.name}` : c.name
+    out.push({ id: c.id, label })
+    out.push(...flattenExpenseCategoryOptions(c.children, label))
+  }
+  return out
+}
+
+export function insertExpenseCategoryChild(
+  cats: ExpenseCategoryOption[],
+  parentId: string,
+  child: ExpenseCategoryOption,
+): ExpenseCategoryOption[] {
+  return cats.map((n) => {
+    if (n.id === parentId) {
+      const children = [...n.children, child]
+      return { ...n, children, subcategories: children.map((c) => ({ id: c.id, name: c.name })) }
+    }
+    if (n.children.length === 0) return n
+    return { ...n, children: insertExpenseCategoryChild(n.children, parentId, child) }
+  })
 }
 
 export async function loadExpenseCategories(): Promise<ExpenseCategoryOption[]> {
   const res = await bossFetch<{ categories?: unknown[] }>('/api/accounting/meta')
   if (!res.ok || !res.data) return []
-  return asList(res.data.categories).map((raw) => {
-    const row = asMap(raw) ?? {}
-    const subs = asList(row.subcategories).map((s) => {
-      const sm = asMap(s) ?? {}
-      return { id: str(sm.id), name: str(sm.name, 'Alt kategori') }
-    })
-    return {
-      id: str(row.id),
-      name: str(row.name, 'Kategori'),
-      subcategories: subs,
-    }
-  })
+  return asList(res.data.categories)
+    .map(mapExpenseCategoryNode)
+    .filter((x): x is ExpenseCategoryOption => Boolean(x))
 }
 
 export async function createExpenseCategoryLookup(
   name: string,
+  parentId?: string,
 ): Promise<{ id: string; label: string } | null> {
   const res = await bossFetch<{ id?: string; label?: string }>('/api/accounting/lookups', {
     method: 'POST',
-    body: JSON.stringify({ entity: 'expenseCategory', name: name.trim() }),
+    body: JSON.stringify({
+      entity: 'expenseCategory',
+      name: name.trim(),
+      ...(parentId ? { parentId } : {}),
+    }),
   })
   if (!res.ok || !res.data?.id) return null
   invalidateBossCache('api:accounting')
@@ -1291,17 +1334,7 @@ export async function createExpenseSubcategoryLookup(
   name: string,
   parentId: string,
 ): Promise<{ id: string; label: string } | null> {
-  const res = await bossFetch<{ id?: string; label?: string }>('/api/accounting/lookups', {
-    method: 'POST',
-    body: JSON.stringify({
-      entity: 'expenseSubcategory',
-      name: name.trim(),
-      parentId,
-    }),
-  })
-  if (!res.ok || !res.data?.id) return null
-  invalidateBossCache('api:accounting')
-  return { id: String(res.data.id), label: String(res.data.label ?? name) }
+  return createExpenseCategoryLookup(name, parentId)
 }
 
 export async function createFinanceAccount(input: {
