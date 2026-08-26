@@ -13,6 +13,8 @@ export type BossNotificationApiRow = {
   detailJson?: {
     lines?: Array<{ productName?: string; quantity?: number; amount?: number | null }>
     amount?: number | null
+    action?: string
+    partyName?: string | null
     [key: string]: unknown
   }
 }
@@ -26,6 +28,11 @@ export const DENETIM_FILTERS: AlertFilter[] = [
   'Ödeme',
   'Z Rapor',
   'İndirim',
+  'Gider',
+  'Kasa',
+  'Müşteri',
+  'Tedarikçi',
+  'Personel',
 ]
 
 export function formatBossEventTime(iso: unknown): string {
@@ -70,12 +77,22 @@ function eventCategory(eventType: string): AlertFilter {
       return 'Z Rapor'
     case 'discount':
       return 'İndirim'
+    case 'expense':
+      return 'Gider'
+    case 'cash_book':
+      return 'Kasa'
+    case 'customer':
+      return 'Müşteri'
+    case 'supplier':
+      return 'Tedarikçi'
+    case 'personnel':
+      return 'Personel'
     default:
       return 'Tümü'
   }
 }
 
-function eventSeverity(eventType: string): AuditAlert['severity'] {
+function eventSeverity(eventType: string, action?: string): AuditAlert['severity'] {
   if (
     eventType === 'cancel' ||
     eventType === 'waste' ||
@@ -83,6 +100,15 @@ function eventSeverity(eventType: string): AuditAlert['severity'] {
     eventType === 'z_report'
   ) {
     return 'kritik'
+  }
+  if (
+    eventType === 'expense' ||
+    eventType === 'cash_book' ||
+    eventType === 'customer' ||
+    eventType === 'supplier' ||
+    eventType === 'personnel'
+  ) {
+    return action === 'delete' || action === 'update' ? 'kritik' : 'uyari'
   }
   return 'uyari'
 }
@@ -105,13 +131,15 @@ export function mapNotificationToAuditAlert(
   const table = String(raw.tableNumber ?? '').trim()
   const title = String(raw.title ?? '').trim() || 'Hareket'
   const summary = String(raw.summary ?? '').trim()
+  const party = String(raw.detailJson?.partyName ?? '').trim()
+  const action = String(raw.detailJson?.action ?? '').trim()
   return {
     id: String(raw.id ?? `n-${index}`),
-    severity: eventSeverity(eventType),
+    severity: eventSeverity(eventType, action),
     category: eventCategory(eventType),
     title,
     who: String(raw.actorName ?? '').trim() || 'Personel',
-    target: table ? `Masa ${table}` : summary || '—',
+    target: table ? `Masa ${table}` : party || summary || '—',
     amount: notificationAmount(raw),
     time: formatBossEventTime(raw.createdAt),
     unread: !raw.readAt,

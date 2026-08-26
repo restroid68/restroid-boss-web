@@ -156,6 +156,11 @@ export type AlertFilter =
   | 'Ödeme'
   | 'Z Rapor'
   | 'İndirim'
+  | 'Gider'
+  | 'Kasa'
+  | 'Müşteri'
+  | 'Tedarikçi'
+  | 'Personel'
   | 'Silme'
   | 'Ödemesiz'
 

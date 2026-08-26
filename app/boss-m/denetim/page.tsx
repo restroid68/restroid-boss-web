@@ -173,7 +173,7 @@ export default function BossMDenetimPage() {
           title={alerts.length === 0 ? 'Henüz kritik hareket yok' : 'Uyarı bulunamadı'}
           description={
             alerts.length === 0
-              ? 'İptal, zayi, masa birleştirme, ödeme iptali ve Z rapor burada görünür.'
+              ? 'İptal, zayi, gider, kasa ve cari işlemleri burada görünür.'
               : 'Bu filtreye göre kayıt yok.'
           }
         />

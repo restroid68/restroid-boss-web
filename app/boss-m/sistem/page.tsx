@@ -53,13 +53,47 @@ export default function BossMSistemPage() {
     { cacheKey: 'page:sistem-shell', ttlMs: 600_000, persist: true },
   )
 
+  type LedgerCats = {
+    expense: boolean
+    cash_book: boolean
+    customer: boolean
+    supplier: boolean
+    personnel: boolean
+  }
+
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [notificationsBusy, setNotificationsBusy] = useState(false)
+  const [ledgerCats, setLedgerCats] = useState<LedgerCats>({
+    expense: true,
+    cash_book: true,
+    customer: true,
+    supplier: true,
+    personnel: true,
+  })
+  const [prefsMode, setPrefsMode] = useState<'off' | 'silent' | 'open'>('open')
+  const [allCategories, setAllCategories] = useState<Record<string, boolean>>({})
 
   const loadPrefs = useCallback(async () => {
     const res = await bossFetch<{ enabled?: boolean }>('/api/boss/devices/notification-prefs')
     if (res.ok && res.data && typeof res.data === 'object') {
       setNotificationsEnabled(Boolean((res.data as { enabled?: boolean }).enabled))
+    }
+    const prefs = await bossFetch<{
+      mode?: string
+      categories?: Record<string, boolean>
+    }>('/api/boss/notifications/prefs')
+    if (prefs.ok && prefs.data) {
+      const mode = prefs.data.mode
+      if (mode === 'off' || mode === 'silent' || mode === 'open') setPrefsMode(mode)
+      const c = prefs.data.categories ?? {}
+      setAllCategories(c)
+      setLedgerCats({
+        expense: c.expense !== false,
+        cash_book: c.cash_book !== false,
+        customer: c.customer !== false,
+        supplier: c.supplier !== false,
+        personnel: c.personnel !== false,
+      })
     }
   }, [])
 
@@ -93,23 +127,74 @@ export default function BossMSistemPage() {
     }
   }
 
+  const onToggleLedgerCat = async (key: keyof LedgerCats, next: boolean) => {
+    if (notificationsBusy) return
+    const prev = ledgerCats
+    const nextLedger = { ...prev, [key]: next }
+    setLedgerCats(nextLedger)
+    setNotificationsBusy(true)
+    try {
+      const mode = notificationsEnabled ? (prefsMode === 'off' ? 'open' : prefsMode) : 'off'
+      const categories = { ...allCategories, ...nextLedger }
+      const res = await bossFetch('/api/boss/notifications/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, categories }),
+      })
+      if (!res.ok) {
+        setLedgerCats(prev)
+      } else {
+        setAllCategories(categories)
+      }
+    } catch {
+      setLedgerCats(prev)
+    } finally {
+      setNotificationsBusy(false)
+    }
+  }
+
   return (
     <main className="flex flex-col gap-0 pb-4">
       <BossMPageHeader title="Sistem Ayarları" showBack />
 
-      <div className="mx-4 mb-3 flex items-center gap-4 rounded-2xl border border-border bg-card px-4 py-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Bell size={22} strokeWidth={1.6} />
+      <div className="mx-4 mb-3 flex flex-col rounded-2xl border border-border bg-card px-4 py-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Bell size={22} strokeWidth={1.6} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground leading-tight">Bildirimler</p>
+          </div>
+          <BossMSwitch
+            checked={notificationsEnabled}
+            onChange={(v) => void onToggleNotifications(v)}
+            aria-label="Bildirimler"
+            className={notificationsBusy ? 'opacity-60' : undefined}
+          />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground leading-tight">Bildirimler</p>
-        </div>
-        <BossMSwitch
-          checked={notificationsEnabled}
-          onChange={(v) => void onToggleNotifications(v)}
-          aria-label="Bildirimler"
-          className={notificationsBusy ? 'opacity-60' : undefined}
-        />
+        {notificationsEnabled ? (
+          <div className="mt-3 space-y-3 border-t border-border pt-3">
+            {(
+              [
+                ['expense', 'Gider'],
+                ['cash_book', 'Kasa defteri'],
+                ['customer', 'Müşteri'],
+                ['supplier', 'Tedarikçi'],
+                ['personnel', 'Personel'],
+              ] as const
+            ).map(([key, label]) => (
+              <div key={key} className="flex items-center justify-between gap-3">
+                <p className="text-sm text-foreground">{label}</p>
+                <BossMSwitch
+                  checked={ledgerCats[key]}
+                  onChange={(v) => void onToggleLedgerCat(key, v)}
+                  aria-label={label}
+                  className={notificationsBusy ? 'opacity-60' : undefined}
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2 px-4">
