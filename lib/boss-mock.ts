@@ -82,6 +82,7 @@ export interface QuickTile {
   value: string
   sub?: string
   variant: 'neutral' | 'success' | 'warning' | 'danger'
+  href?: string
 }
 
 export const FINANS_TILES: QuickTile[] = [
@@ -575,14 +576,17 @@ export interface SahipAylik {
   personelGider: string
   ciroDelta: string
   maliyetRatio: string
+  kasaShortage: string
+  kasaSurplus: string
+  closedShifts: number
 }
 
 export const SAHIP_RAPORLAR: SahipAylik[] = [
-  { month: 'Temmuz 2025',  ciro: '₺186.400', maliyet: '₺78.200',  karProxy: '₺108.200', personelGider: '₺28.400', ciroDelta: '+12%', maliyetRatio: '41.9%' },
-  { month: 'Haziran 2025', ciro: '₺166.200', maliyet: '₺71.400',  karProxy: '₺94.800',  personelGider: '₺27.600', ciroDelta: '+8%',  maliyetRatio: '42.9%' },
-  { month: 'Mayıs 2025',   ciro: '₺153.800', maliyet: '₺68.900',  karProxy: '₺84.900',  personelGider: '₺26.800', ciroDelta: '+5%',  maliyetRatio: '44.8%' },
-  { month: 'Nisan 2025',   ciro: '₺146.500', maliyet: '₺65.200',  karProxy: '₺81.300',  personelGider: '₺26.200', ciroDelta: '+3%',  maliyetRatio: '44.5%' },
-  { month: 'Mart 2025',    ciro: '₺142.200', maliyet: '₺64.800',  karProxy: '₺77.400',  personelGider: '₺25.400', ciroDelta: '-2%',  maliyetRatio: '45.6%' },
+  { month: 'Temmuz 2025',  ciro: '₺186.400', maliyet: '₺78.200',  karProxy: '₺108.200', personelGider: '₺28.400', ciroDelta: '+12%', maliyetRatio: '41.9%', kasaShortage: '₺0', kasaSurplus: '₺0', closedShifts: 0 },
+  { month: 'Haziran 2025', ciro: '₺166.200', maliyet: '₺71.400',  karProxy: '₺94.800',  personelGider: '₺27.600', ciroDelta: '+8%',  maliyetRatio: '42.9%', kasaShortage: '₺0', kasaSurplus: '₺0', closedShifts: 0 },
+  { month: 'Mayıs 2025',   ciro: '₺153.800', maliyet: '₺68.900',  karProxy: '₺84.900',  personelGider: '₺26.800', ciroDelta: '+5%',  maliyetRatio: '44.8%', kasaShortage: '₺0', kasaSurplus: '₺0', closedShifts: 0 },
+  { month: 'Nisan 2025',   ciro: '₺146.500', maliyet: '₺65.200',  karProxy: '₺81.300',  personelGider: '₺26.200', ciroDelta: '+3%',  maliyetRatio: '44.5%', kasaShortage: '₺0', kasaSurplus: '₺0', closedShifts: 0 },
+  { month: 'Mart 2025',    ciro: '₺142.200', maliyet: '₺64.800',  karProxy: '₺77.400',  personelGider: '₺25.400', ciroDelta: '-2%',  maliyetRatio: '45.6%', kasaShortage: '₺0', kasaSurplus: '₺0', closedShifts: 0 },
 ]
 
 // ── Raporlar / Z (/boss-m/raporlar/z) ────────────────────────────────────────
@@ -598,15 +602,17 @@ export interface ZReport {
   date: string
   receiptCount: number
   cancelTotal: string
+  cashCountDifference: number
+  cashShiftVariance: number
 }
 
 export const Z_REPORTS: ZReport[] = [
-  { id: 'z01', zNo: 'Z-0842', terminal: 'Kasa 1',   total: '₺8.420', nakit: '₺3.180', kart: '₺5.240', time: '23:58', date: '17 Tem 2025', receiptCount: 94,  cancelTotal: '₺320' },
-  { id: 'z02', zNo: 'Z-0841', terminal: 'Kasa 1',   total: '₺7.860', nakit: '₺2.940', kart: '₺4.920', time: '23:55', date: '16 Tem 2025', receiptCount: 88,  cancelTotal: '₺140' },
-  { id: 'z03', zNo: 'Z-0318', terminal: 'Kasa 2',   total: '₺5.240', nakit: '₺1.820', kart: '₺3.420', time: '23:52', date: '17 Tem 2025', receiptCount: 61,  cancelTotal: '₺210' },
-  { id: 'z04', zNo: 'Z-0840', terminal: 'Kasa 1',   total: '₺9.120', nakit: '₺3.640', kart: '₺5.480', time: '23:59', date: '15 Tem 2025', receiptCount: 102, cancelTotal: '₺480' },
-  { id: 'z05', zNo: 'Z-0317', terminal: 'Kasa 2',   total: '₺4.980', nakit: '₺1.680', kart: '₺3.300', time: '23:51', date: '16 Tem 2025', receiptCount: 58,  cancelTotal: '₺90'  },
-  { id: 'z06', zNo: 'Z-0839', terminal: 'Kasa 1',   total: '₺8.760', nakit: '₺3.200', kart: '₺5.560', time: '23:57', date: '14 Tem 2025', receiptCount: 97,  cancelTotal: '₺260' },
+  { id: 'z01', zNo: 'Z-0842', terminal: 'Kasa 1',   total: '₺8.420', nakit: '₺3.180', kart: '₺5.240', time: '23:58', date: '17 Tem 2025', receiptCount: 94,  cancelTotal: '₺320', cashCountDifference: 0, cashShiftVariance: 0 },
+  { id: 'z02', zNo: 'Z-0841', terminal: 'Kasa 1',   total: '₺7.860', nakit: '₺2.940', kart: '₺4.920', time: '23:55', date: '16 Tem 2025', receiptCount: 88,  cancelTotal: '₺140', cashCountDifference: 0, cashShiftVariance: 0 },
+  { id: 'z03', zNo: 'Z-0318', terminal: 'Kasa 2',   total: '₺5.240', nakit: '₺1.820', kart: '₺3.420', time: '23:52', date: '17 Tem 2025', receiptCount: 61,  cancelTotal: '₺210', cashCountDifference: 0, cashShiftVariance: 0 },
+  { id: 'z04', zNo: 'Z-0840', terminal: 'Kasa 1',   total: '₺9.120', nakit: '₺3.640', kart: '₺5.480', time: '23:59', date: '15 Tem 2025', receiptCount: 102, cancelTotal: '₺480', cashCountDifference: 0, cashShiftVariance: 0 },
+  { id: 'z05', zNo: 'Z-0317', terminal: 'Kasa 2',   total: '₺4.980', nakit: '₺1.680', kart: '₺3.300', time: '23:51', date: '16 Tem 2025', receiptCount: 58,  cancelTotal: '₺90', cashCountDifference: 0, cashShiftVariance: 0 },
+  { id: 'z06', zNo: 'Z-0839', terminal: 'Kasa 1',   total: '₺8.760', nakit: '₺3.200', kart: '₺5.560', time: '23:57', date: '14 Tem 2025', receiptCount: 97,  cancelTotal: '₺260', cashCountDifference: 0, cashShiftVariance: 0 },
 ]
 
 // ── Cariler (/boss-m/cariler) ─────────────────────────────────────────────────

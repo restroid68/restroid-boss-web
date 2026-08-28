@@ -16,6 +16,8 @@ const FINANS_FALLBACK: FinansDashboardData = {
     { label: 'Giderler', value: '₺0', sub: 'bugün', variant: 'danger' },
     { label: 'Tahsilatlar', value: '₺0', sub: 'bugün', variant: 'success' },
     { label: 'Zayi / İptal', value: '₺0', sub: 'bugün', variant: 'neutral' },
+    { label: 'Kasa açığı', value: '₺0', sub: 'nakit vardiya', variant: 'danger', href: '/boss-m/raporlar/vardiya' },
+    { label: 'Kasa fazlası', value: '₺0', sub: 'nakit vardiya', variant: 'success', href: '/boss-m/raporlar/vardiya' },
   ],
   movements: [],
   source: 'mock',

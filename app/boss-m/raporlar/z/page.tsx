@@ -1,11 +1,13 @@
 ﻿'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { X, Printer, CreditCard, Banknote, Receipt, AlertTriangle } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import type { ZReport } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadZReportsPage } from '@/lib/boss-page-data'
+import { formatMoneyTR } from '@/lib/boss-money'
 import { cn } from '@/lib/utils'
 
 // ── Detail panel ──────────────────────────────────────────────────────────────
@@ -18,6 +20,8 @@ function ZDetailPanel({ report, onClose }: { report: ZReport; onClose: () => voi
     { label: 'Kart',            value: report.kart,           icon: CreditCard },
     { label: 'Fiş Sayısı',      value: `${report.receiptCount} adet`, icon: Receipt },
     { label: 'İptal Tutarı',    value: report.cancelTotal,    icon: AlertTriangle, accent: 'text-danger' },
+    { label: 'Kasa sayım farkı', value: `₺${formatMoneyTR(report.cashCountDifference, 2)}`, icon: AlertTriangle, accent: Math.abs(report.cashCountDifference) > 0.009 ? 'text-warning' : undefined },
+    { label: 'Nakit vardiya farkı', value: `₺${formatMoneyTR(report.cashShiftVariance, 2)}`, icon: Banknote, accent: Math.abs(report.cashShiftVariance) > 0.009 ? 'text-warning' : undefined },
     { label: 'Kapanış Saati',   value: `${report.date} ${report.time}`, icon: Receipt },
   ]
 
@@ -63,7 +67,7 @@ function ZDetailPanel({ report, onClose }: { report: ZReport; onClose: () => voi
         <div className="flex items-start gap-3 px-4 py-3.5 bg-surface-2 border border-border rounded-2xl">
           <AlertTriangle size={14} className="text-warning mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Z raporu salt okunur kayıttır. Değiştirilemez veya silinemez.
+            Z raporu gün sonu kasa fişidir; salt okunur. Nakit teslimi ayrıdır (nakit vardiya). Puantaj işe giriş saatidir.
           </p>
         </div>
       </div>
@@ -94,6 +98,17 @@ export default function BossMZRaporlarPage() {
       <BossMPageHeader title="Z Raporları" showBack />
 
       <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          Gün sonu kasa fişi. Nakit teslimi için{' '}
+          <Link href="/boss-m/raporlar/vardiya" className="text-foreground font-medium underline underline-offset-2">
+            Nakit vardiya
+          </Link>
+          ; işe giriş saati için{' '}
+          <Link href="/boss-m/personel/puantaj" className="text-foreground font-medium underline underline-offset-2">
+            Puantaj
+          </Link>
+          .
+        </p>
         {loading && (
           <div className="space-y-2 animate-pulse mb-4">
             {[...Array(3)].map((_, i) => (
@@ -132,6 +147,11 @@ export default function BossMZRaporlarPage() {
                       <span className="text-[10px] text-muted-foreground">{r.receiptCount} fiş</span>
                       {parseInt(r.cancelTotal.replace(/\D/g, ''), 10) > 0 && (
                         <span className="text-[10px] text-danger font-medium">{r.cancelTotal} iptal</span>
+                      )}
+                      {Math.abs(r.cashShiftVariance) > 0.009 && (
+                        <span className="text-[10px] text-warning font-medium">
+                          Vardiya {r.cashShiftVariance < 0 ? 'açığı' : 'fazlası'}
+                        </span>
                       )}
                       <span className="text-[10px] text-muted-foreground">{r.time}</span>
                     </div>

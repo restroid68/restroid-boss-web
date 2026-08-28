@@ -64,7 +64,7 @@ const ROUTE_GROUPS = [
     group: 'Menü & Personel',
     routes: [
       { href: '/boss-m/menu', label: 'Menü & Fiyat', sub: 'Ürün listesi, fiyat düzenle, 86 toggle', icon: UtensilsCrossed, color: 'text-primary  bg-primary/10' },
-      { href: '/boss-m/personel', label: 'Personel', sub: 'Performans sıralaması, kadro, denetim', icon: Users, color: 'text-info    bg-info/10' },
+      { href: '/boss-m/personel', label: 'Personel', sub: 'Performans, kadro, puantaj', icon: Users, color: 'text-info    bg-info/10' },
     ],
   },
   {
@@ -72,6 +72,8 @@ const ROUTE_GROUPS = [
     routes: [
       { href: '/boss-m/raporlar/sahip', label: 'Sahip Raporu', sub: 'Aylık ciro, maliyet, kâr tahmini', icon: FileBarChart2, color: 'text-success bg-success/10' },
       { href: '/boss-m/raporlar/z', label: 'Z Raporları', sub: 'Günlük kapanış, terminal, fiş sayısı', icon: Receipt, color: 'text-warning bg-warning/10' },
+      { href: '/boss-m/raporlar/vardiya', label: 'Nakit vardiya', sub: 'Kasa açığı, teslim, çekmece farkı', icon: Wallet, color: 'text-info bg-info/10' },
+      { href: '/boss-m/personel/puantaj', label: 'Puantaj', sub: 'İşe giriş-çıkış saati (PIN / mesai)', icon: Users, color: 'text-primary bg-primary/10' },
     ],
   },
   {

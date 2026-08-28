@@ -21,6 +21,8 @@ const routes = [
   '/boss-m/raporlar',
   '/boss-m/raporlar/sahip',
   '/boss-m/raporlar/z',
+  '/boss-m/raporlar/vardiya',
+  '/boss-m/personel/puantaj',
   '/boss-m/siparisler/online',
   '/boss-m/siparisler/qr',
   '/boss-m/sistem',

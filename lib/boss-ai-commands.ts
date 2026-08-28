@@ -253,6 +253,26 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         label: 'Açık cari alacak',
         prompt: 'Açık hesap / cari alacak tutarını ve riskli noktaları özetle.',
       },
+      {
+        id: 'cash-shift-variance',
+        label: 'Kasa açığı',
+        prompt:
+          'Nakit vardiya kasa açığı ve fazlasını özetle. Puantaj veya Z ile karıştırma; çekmece teslim farkını söyle.',
+        hint: 'Nakit vardiya',
+      },
+      {
+        id: 'cash-shifts-list',
+        label: 'Nakit vardiya',
+        prompt:
+          'Son dönem nakit vardiyalarını (teslim, sayılan, fark) özetle. Puantaj (işe giriş saati) değildir.',
+      },
+      {
+        id: 'till-monthly-print',
+        label: 'Aylık fiş nerede?',
+        prompt:
+          'Kasadaki termal aylık/yıllık rapor fişi ile panel Aylık Rapor farkını kısaca anlat. Boss’tan fiş basılmaz.',
+        hint: 'Kasa Gün Özeti',
+      },
     ],
   },
   {
@@ -320,6 +340,19 @@ export const BOSS_AI_COMMAND_CATEGORIES: BossAiCommandCategory[] = [
         id: 'reservations-today',
         label: 'Rezervasyonlar',
         prompt: 'Bugünkü ve yaklaşan rezervasyonları listele.',
+      },
+      {
+        id: 'timesheet-month',
+        label: 'Bu ay puantaj',
+        prompt:
+          'Bu ay personel puantajını (işe giriş-çıkış, çalışılan saat) özetle. Nakit vardiya veya Z raporu değildir.',
+        hint: 'Mesai saati',
+      },
+      {
+        id: 'three-jobs',
+        label: 'Puantaj / vardiya / Z',
+        prompt:
+          'Puantaj, nakit vardiya ve Z raporunun farkını üç kısa cümleyle anlat. Hangisi ne işe yarar?',
       },
     ],
   },

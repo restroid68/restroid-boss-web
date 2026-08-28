@@ -1,9 +1,10 @@
 ﻿'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
-  ShoppingBag, Package, Users, BarChart2,
+  ShoppingBag, Package, Users, BarChart2, Scale, Clock,
 } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
@@ -69,15 +70,16 @@ function MiniBarChart({ values, color }: { values: number[]; color: string }) {
 
 // ── Section stub card ─────────────────────────────────────────────────────────
 function SectionCard({
-  icon: Icon, title, detail, comingSoon,
+  icon: Icon, title, detail, comingSoon, href,
 }: {
   icon: React.ElementType
   title: string
   detail: string
   comingSoon?: boolean
+  href?: string
 }) {
-  return (
-    <div className="bg-card border border-border rounded-2xl px-4 py-4 flex items-center gap-4">
+  const inner = (
+    <>
       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
         <Icon size={18} className="text-primary" strokeWidth={1.6} />
       </div>
@@ -90,8 +92,17 @@ function SectionCard({
           Yakında
         </span>
       )}
-    </div>
+    </>
   )
+  const className = 'bg-card border border-border rounded-2xl px-4 py-4 flex items-center gap-4'
+  if (href) {
+    return (
+      <Link href={href} className={`${className} active:scale-[0.98] transition-transform`}>
+        {inner}
+      </Link>
+    )
+  }
+  return <div className={className}>{inner}</div>
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -179,6 +190,20 @@ export default function BossMSahipRaporPage() {
                 sub="Brüt maaş tahmini"
                 accent="text-info"
               />
+              <div className="grid grid-cols-2 gap-3">
+                <KpiCard
+                  label="Kasa açığı"
+                  value={data.kasaShortage}
+                  sub="Nakit vardiya"
+                  accent="text-danger"
+                />
+                <KpiCard
+                  label="Kasa fazlası"
+                  value={data.kasaSurplus}
+                  sub={`${data.closedShifts} kapalı vardiya`}
+                  accent="text-success"
+                />
+              </div>
             </section>
 
             {/* Trend charts — yalnızca birden çok gerçek dönem varsa */}
@@ -209,6 +234,8 @@ export default function BossMSahipRaporPage() {
                 <SectionCard icon={ShoppingBag} title="Satış Analizi"   detail="Kanal ve kategori bazlı satış dağılımı" comingSoon />
                 <SectionCard icon={Package}     title="Stok Özeti"      detail="Fire, devir ve kritik ürün raporu"     comingSoon />
                 <SectionCard icon={Users}       title="Personel Özeti"  detail="Ciro katkısı ve iptal karşılaştırması" comingSoon />
+                <SectionCard icon={Scale} title="Nakit vardiya" detail="Kasa açığı, fazlası, teslim listesi" href="/boss-m/raporlar/vardiya" />
+                <SectionCard icon={Clock} title="Puantaj" detail="İşe giriş-çıkış saati (PIN)" href="/boss-m/personel/puantaj" />
               </div>
             </section>
           </>

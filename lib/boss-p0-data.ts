@@ -291,6 +291,8 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
       { label: 'Giderler', value: '₺0', sub: 'bugün', variant: 'danger' },
       { label: 'Tahsilatlar', value: '₺0', sub: 'bugün', variant: 'success' },
       { label: 'Zayi / İptal', value: '₺0', sub: 'bugün', variant: 'neutral' },
+      { label: 'Kasa açığı', value: '₺0', sub: 'nakit vardiya', variant: 'danger', href: '/boss-m/raporlar/vardiya' },
+      { label: 'Kasa fazlası', value: '₺0', sub: 'nakit vardiya', variant: 'success', href: '/boss-m/raporlar/vardiya' },
     ],
     movements: [],
     source: 'mock',
@@ -299,7 +301,7 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
 
   try {
   const day = todayYmd()
-  const [sales, tx] = await Promise.all([
+  const [sales, tx, shifts] = await Promise.all([
     fetchSalesAnalysisTodayFull(),
     withBossCache(
       'api:accounting-tx:today:20',
@@ -311,9 +313,12 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
         ),
       { isCacheable: (r) => r.ok },
     ),
+    bossFetch<{ summary?: Record<string, unknown> }>('/api/finance/cash-shifts', {
+      query: { page: '1', pageSize: '1', from: day, to: day },
+    }),
   ])
 
-  if (!sales.ok && !tx.ok) return { ...emptyFinans, source: 'api' }
+  if (!sales.ok && !tx.ok && !shifts.ok) return { ...emptyFinans, source: 'api' }
 
   const summary = asMap(sales.data?.summary) ?? {}
   const ciro = num(summary.netSales ?? summary.closedNetSales ?? summary.totalRevenue)
@@ -386,9 +391,23 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
         sub: 'bugün',
         variant: 'neutral',
       },
+      {
+        label: 'Kasa açığı',
+        value: `₺${formatMoneyTR(num(asMap(shifts.data?.summary)?.shortageAmount), 2)}`,
+        sub: 'nakit vardiya',
+        variant: 'danger',
+        href: '/boss-m/raporlar/vardiya',
+      },
+      {
+        label: 'Kasa fazlası',
+        value: `₺${formatMoneyTR(num(asMap(shifts.data?.summary)?.surplusAmount), 2)}`,
+        sub: 'nakit vardiya',
+        variant: 'success',
+        href: '/boss-m/raporlar/vardiya',
+      },
     ],
     movements,
-    source: sales.ok || tx.ok ? 'api' : 'mock',
+    source: sales.ok || tx.ok || shifts.ok ? 'api' : 'mock',
   }
   } catch {
     return { ...emptyFinans, source: 'api' }

@@ -17,6 +17,10 @@ import {
   TrendingDown,
   Minus,
   X,
+  FileBarChart2,
+  Receipt,
+  Scale,
+  Clock,
 } from 'lucide-react'
 
 const iconMap: Record<string, React.ElementType> = {
@@ -74,6 +78,58 @@ export default function BossMRaporlarPage() {
     <main className="flex flex-col gap-4 pb-4">
       <BossMPageHeader title="Raporlar" />
 
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-4">
+        İşletme
+      </p>
+      <div className="flex flex-col gap-2 px-4">
+        {[
+          {
+            href: '/boss-m/raporlar/sahip',
+            title: 'Sahip raporu',
+            purpose: 'Aylık maliyet özeti. Kasa termal aylık fiş değildir.',
+            Icon: FileBarChart2,
+          },
+          {
+            href: '/boss-m/raporlar/z',
+            title: 'Z raporları',
+            purpose: 'Gün sonu kasa fişi. Nakit teslimi değildir.',
+            Icon: Receipt,
+          },
+          {
+            href: '/boss-m/raporlar/vardiya',
+            title: 'Nakit vardiya',
+            purpose: 'Kasa açığı, teslim, çekmece farkı',
+            Icon: Scale,
+          },
+          {
+            href: '/boss-m/personel/puantaj',
+            title: 'Puantaj',
+            purpose: 'İşe giriş-çıkış saati (PIN / mesai)',
+            Icon: Clock,
+          },
+        ].map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            className="bg-card border border-border rounded-2xl px-4 py-4 flex items-center gap-4 text-left active:scale-[0.98] transition-transform"
+          >
+            <div className="flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary shrink-0">
+              <card.Icon size={20} strokeWidth={1.6} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">{card.title}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{card.purpose}</p>
+            </div>
+            <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-surface-2 text-muted-foreground shrink-0">
+              <ChevronRight size={16} />
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-4">
+        Satış
+      </p>
       <div className="flex flex-col gap-2 px-4">
         {REPORT_CARDS.map((card) => {
           const Icon = iconMap[card.icon] ?? BarChart2

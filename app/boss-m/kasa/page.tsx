@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
@@ -22,6 +23,8 @@ import {
   ArrowLeftRight,
   Inbox,
   Plus,
+  Scale,
+  ChevronRight,
 } from 'lucide-react'
 
 const accountIcons: Record<Account['type'], React.ElementType> = {
@@ -131,6 +134,20 @@ export default function BossMCashPage() {
           ) : null
         }
       />
+
+      <Link
+        href="/boss-m/raporlar/vardiya"
+        className="mx-4 bg-card border border-border rounded-2xl px-4 py-3.5 flex items-center gap-3 active:scale-[0.98] transition-transform"
+      >
+        <div className="w-10 h-10 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
+          <Scale size={16} className="text-warning" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">Nakit vardiya</p>
+          <p className="text-xs text-muted-foreground">Kasa açığı / fazlası, teslim. Puantaj değildir.</p>
+        </div>
+        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+      </Link>
 
       <div className="flex gap-2 overflow-x-auto px-4 pb-0.5">
         {accounts.map((acc) => {

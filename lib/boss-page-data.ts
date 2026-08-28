@@ -1526,6 +1526,9 @@ export async function loadSahipPage(): Promise<SahipPageData> {
     personelGider: `₺${formatMoneyTR(personel)}`,
     ciroDelta: '—',
     maliyetRatio: ratio,
+    kasaShortage: `₺${formatMoneyTR(num(asMap(d.cashShiftVariance)?.shortageAmount), 2)}`,
+    kasaSurplus: `₺${formatMoneyTR(num(asMap(d.cashShiftVariance)?.surplusAmount), 2)}`,
+    closedShifts: Math.max(0, Math.floor(num(asMap(d.cashShiftVariance)?.closedCount))),
   }
 
   // API varken örnek geçmiş aylar gösterilmez — yalnızca gerçek dönem.
@@ -1564,9 +1567,168 @@ export async function loadZReportsPage(): Promise<ZPageData> {
       date: fmtDateShort(reportAt),
       receiptCount: 0,
       cancelTotal: `₺${formatMoneyTR(num(row.productCanceledAmount))}`,
+      cashCountDifference: num(row.cashCountDifference),
+      cashShiftVariance: num(row.cashShiftVariance),
     }
   })
 
   // Oturum + API varken örnek Z listesi gösterme — boş liste doğru durum.
   return { reports, source: 'api' }
 }
+
+export type BossCashShiftRow = {
+  id: string
+  seq: number
+  mode: 'pool' | 'wallet'
+  personnelName: string
+  startedAt: string
+  closedAt: string | null
+  countedAmount: number
+  dropAmount: number
+  floatLeft: number
+  varianceAmount: number
+}
+
+export type BossCashShiftSummary = {
+  closedCount: number
+  shortageAmount: number
+  surplusAmount: number
+  netVariance: number
+}
+
+export type CashShiftsPageData = {
+  items: BossCashShiftRow[]
+  summary: BossCashShiftSummary
+  from: string
+  to: string
+  source: 'api' | 'mock'
+}
+
+export async function loadCashShiftsPage(): Promise<CashShiftsPageData> {
+  const session = readNativeSession()
+  const to = todayYmd()
+  const from = ymdDaysAgo(29)
+  const empty: CashShiftsPageData = {
+    items: [],
+    summary: { closedCount: 0, shortageAmount: 0, surplusAmount: 0, netVariance: 0 },
+    from,
+    to,
+    source: 'mock',
+  }
+  if (!session?.token) return empty
+
+  const res = await bossFetch<{
+    items?: unknown[]
+    summary?: Record<string, unknown>
+  }>('/api/finance/cash-shifts', {
+    query: { page: '1', pageSize: '40', from, to },
+  })
+  if (!res.ok || !res.data) return { ...empty, source: 'api' }
+
+  const summaryMap = asMap(res.data.summary) ?? {}
+  const items: BossCashShiftRow[] = asList(res.data.items).map((raw, i) => {
+    const row = asMap(raw) ?? {}
+    const mode = str(row.mode) === 'wallet' ? 'wallet' : 'pool'
+    return {
+      id: str(row.id ?? i),
+      seq: Math.max(0, Math.floor(num(row.seq))),
+      mode,
+      personnelName: str(row.personnelName, '—'),
+      startedAt: str(row.startedAt),
+      closedAt: str(row.closedAt) || null,
+      countedAmount: num(row.countedAmount),
+      dropAmount: num(row.dropAmount),
+      floatLeft: num(row.floatLeft),
+      varianceAmount: num(row.varianceAmount),
+    }
+  })
+  return {
+    items,
+    summary: {
+      closedCount: Math.max(0, Math.floor(num(summaryMap.closedCount))),
+      shortageAmount: num(summaryMap.shortageAmount),
+      surplusAmount: num(summaryMap.surplusAmount),
+      netVariance: num(summaryMap.netVariance),
+    },
+    from,
+    to,
+    source: 'api',
+  }
+}
+
+export type BossTimesheetRow = {
+  id: string
+  personnelName: string
+  startedAt: string
+  endedAt: string | null
+  hours: number | null
+  source: string
+}
+
+export type BossTimesheetHours = {
+  personnelId: string
+  fullName: string
+  workedHours: number
+}
+
+export type TimesheetPageData = {
+  yearMonth: string
+  rows: BossTimesheetRow[]
+  hoursByPersonnel: BossTimesheetHours[]
+  source: 'api' | 'mock'
+}
+
+export async function loadTimesheetPage(): Promise<TimesheetPageData> {
+  const session = readNativeSession()
+  const now = new Date()
+  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  if (!session?.token) return { yearMonth, rows: [], hoursByPersonnel: [], source: 'mock' }
+
+  const res = await bossFetch<{
+    yearMonth?: string
+    rows?: unknown[]
+    hoursByPersonnel?: unknown[]
+  }>('/api/restaurant/personnel/attendance', {
+    query: { yearMonth },
+  })
+  if (!res.ok || !res.data) {
+    return { yearMonth, rows: [], hoursByPersonnel: [], source: 'api' }
+  }
+
+  const sourceLabel = (raw: string): string => {
+    if (raw === 'shift_close') return 'Vardiya kapanışı'
+    if (raw === 'z') return 'Gün sonu'
+    if (raw === 'manual') return 'Elle'
+    return 'PIN'
+  }
+
+  const rows: BossTimesheetRow[] = asList(res.data.rows).map((raw, i) => {
+    const row = asMap(raw) ?? {}
+    const hoursRaw = row.hours
+    const hours =
+      hoursRaw == null || hoursRaw === '' ? null : num(hoursRaw)
+    return {
+      id: str(row.id ?? i),
+      personnelName: str(row.personnelName, '—'),
+      startedAt: str(row.startedAt),
+      endedAt: str(row.endedAt) || null,
+      hours: hoursRaw == null || hoursRaw === '' ? null : hours,
+      source: sourceLabel(str(row.source)),
+    }
+  })
+  const hoursByPersonnel: BossTimesheetHours[] = asList(res.data.hoursByPersonnel).map((raw, i) => {
+    const row = asMap(raw) ?? {}
+    return {
+      personnelId: str(row.personnelId ?? i),
+      fullName: str(row.fullName, '—'),
+      workedHours: num(row.workedHours),
+    }
+  })
+  return {
+    yearMonth: str(res.data.yearMonth, yearMonth),
+    rows,
+    hoursByPersonnel,
+    source: 'api',
+  }
+}
+

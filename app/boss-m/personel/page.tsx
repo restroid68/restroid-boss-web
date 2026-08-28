@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   Users, TrendingDown, TrendingUp, Minus, X, ShoppingBag, Clock,
   AlertCircle, ChevronRight,
@@ -239,6 +240,20 @@ export default function BossMPersonelPage() {
       )}
 
       <BossMPageHeader title="Personel" showBack />
+
+      <Link
+        href="/boss-m/personel/puantaj"
+        className="mx-4 mb-3 bg-card border border-border rounded-2xl px-4 py-3.5 flex items-center gap-3 active:scale-[0.98] transition-transform"
+      >
+        <div className="w-10 h-10 rounded-xl bg-info/10 flex items-center justify-center shrink-0">
+          <Clock size={16} className="text-info" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-foreground">Puantaj</p>
+          <p className="text-xs text-muted-foreground">İşe giriş-çıkış saati. Nakit vardiya değildir.</p>
+        </div>
+        <ChevronRight size={16} className="text-muted-foreground shrink-0" />
+      </Link>
 
       {/* Tabs */}
       <div className="flex gap-1 mx-4 mb-3 p-1 bg-surface-2 rounded-xl border border-border">

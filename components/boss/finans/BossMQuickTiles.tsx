@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { QuickTile } from '@/lib/boss-mock'
 
@@ -15,23 +16,35 @@ interface BossMQuickTilesProps {
 export function BossMQuickTiles({ tiles }: BossMQuickTilesProps) {
   return (
     <div className="grid grid-cols-2 gap-2 px-4">
-      {tiles.map((t) => (
-        <button
-          key={t.label}
-          className={cn(
-            'bg-card border rounded-xl p-3.5 flex flex-col gap-0.5 text-left active:scale-[0.97] transition-transform',
-            variantStyles[t.variant]
-          )}
-        >
-          <span className="text-xs text-muted-foreground font-medium">{t.label}</span>
-          <span className={cn('text-xl font-bold tabular-nums leading-tight', variantStyles[t.variant].split(' ')[0])}>
-            {t.value}
-          </span>
-          {t.sub && (
-            <span className="text-[10px] text-muted-foreground">{t.sub}</span>
-          )}
-        </button>
-      ))}
+      {tiles.map((t) => {
+        const className = cn(
+          'bg-card border rounded-xl p-3.5 flex flex-col gap-0.5 text-left active:scale-[0.97] transition-transform',
+          variantStyles[t.variant],
+        )
+        const inner = (
+          <>
+            <span className="text-xs text-muted-foreground font-medium">{t.label}</span>
+            <span className={cn('text-xl font-bold tabular-nums leading-tight', variantStyles[t.variant].split(' ')[0])}>
+              {t.value}
+            </span>
+            {t.sub && (
+              <span className="text-[10px] text-muted-foreground">{t.sub}</span>
+            )}
+          </>
+        )
+        if (t.href) {
+          return (
+            <Link key={t.label} href={t.href} className={className}>
+              {inner}
+            </Link>
+          )
+        }
+        return (
+          <div key={t.label} className={className}>
+            {inner}
+          </div>
+        )
+      })}
     </div>
   )
 }
