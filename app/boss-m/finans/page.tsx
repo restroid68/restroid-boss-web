@@ -53,19 +53,15 @@ export default function BossMFinans() {
       <BossMPaymentDonut slices={data.paymentMix} total={data.totalLabel} />
 
       <div className="px-4 flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Özet
-        </span>
-        <div className="flex-1 h-px bg-border" />
+        <span className="boss-card-title">Özet</span>
+        <div className="h-px flex-1 bg-[color:color-mix(in_srgb,var(--boss-glow)_22%,transparent)]" />
       </div>
 
       <BossMQuickTiles tiles={data.tiles} />
 
       <div className="px-4 flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Hareketler
-        </span>
-        <div className="flex-1 h-px bg-border" />
+        <span className="boss-card-title">Hareketler</span>
+        <div className="h-px flex-1 bg-[color:color-mix(in_srgb,var(--boss-glow)_22%,transparent)]" />
       </div>
 
       <BossMMovementList movements={data.movements} />

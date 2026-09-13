@@ -11,7 +11,7 @@ export function BossMDikkatList({ alerts }: BossMDikkatListProps) {
   return (
     <div className="mx-4 bg-card rounded-2xl overflow-hidden border border-border">
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <span className="boss-card-title">
           Dikkat
         </span>
         <Link

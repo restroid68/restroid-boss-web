@@ -9,7 +9,7 @@ export function BossMBranchCompare({ branches }: { branches: AnaBranchShare[] })
   return (
     <section className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="px-4 pb-1 pt-3.5">
-        <h2 className="text-sm font-semibold text-foreground">Şube karşılaştırması</h2>
+        <h2 className="boss-card-title">Şube karşılaştırması</h2>
       </div>
       <div className="flex flex-col gap-3 px-4 pb-4 pt-2">
         {branches.map((b) => (

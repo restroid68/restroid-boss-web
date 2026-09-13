@@ -27,10 +27,16 @@ export function BossMRevenueTrend({ points }: { points: AnaRevenuePoint[] }) {
   return (
     <section className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="px-4 pb-1 pt-3.5">
-        <h2 className="text-sm font-semibold text-foreground">Haftalık ciro</h2>
+        <h2 className="boss-card-title">Haftalık ciro</h2>
       </div>
       <div className="px-2 pb-2 pt-1">
-        <svg viewBox={`0 0 ${w} ${h}`} className="h-[112px] w-full text-primary" role="img" aria-label="Haftalık ciro">
+        <svg
+          viewBox={`0 0 ${w} ${h}`}
+          className="h-[112px] w-full"
+          style={{ color: 'var(--boss-glow)' }}
+          role="img"
+          aria-label="Haftalık ciro"
+        >
           <defs>
             <linearGradient id="anaCiroFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="currentColor" stopOpacity="0.32" />

@@ -46,7 +46,7 @@ export default function BossMTemaPage() {
           <div className="min-w-0">
             <p className="text-sm font-semibold text-foreground">Uygulama rengi</p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Kartlar, üst çubuk ve alt menü
+              Üst çubuk, menü ve butonlar
             </p>
           </div>
         </div>

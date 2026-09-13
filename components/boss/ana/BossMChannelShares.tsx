@@ -21,7 +21,7 @@ export function BossMChannelShares({ channels }: { channels: AnaChannelShare[] }
   return (
     <section className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="px-4 pb-1 pt-3.5">
-        <h2 className="text-sm font-semibold text-foreground">Satış kanalları</h2>
+        <h2 className="boss-card-title">Satış kanalları</h2>
       </div>
       <div className="flex flex-col gap-3.5 px-4 pb-4 pt-2">
         {active.map((c) => (

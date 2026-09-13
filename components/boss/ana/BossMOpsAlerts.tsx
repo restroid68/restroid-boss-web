@@ -15,7 +15,7 @@ export function BossMOpsAlerts({ alerts }: { alerts: AnaOpsAlert[] }) {
   return (
     <section className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
-        <h2 className="text-sm font-semibold text-foreground">Operasyon uyarıları</h2>
+        <h2 className="boss-card-title">Operasyon uyarıları</h2>
         <Link href="/boss-m/denetim" className="text-[11px] font-medium text-primary">
           Denetim
         </Link>
@@ -25,7 +25,7 @@ export function BossMOpsAlerts({ alerts }: { alerts: AnaOpsAlert[] }) {
           const cfg = SEVERITY[alert.severity]
           const Icon = cfg.icon
           const body = (
-            <div className="flex items-start gap-3 rounded-xl border border-border px-3 py-2.5">
+            <div className="boss-inset-row flex items-start gap-3 rounded-xl border px-3 py-2.5">
               <Icon size={15} className={cn('mt-0.5 shrink-0', cfg.className)} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">

@@ -32,7 +32,7 @@ export default function BossScrollShell({ children }: { children: ReactNode }) {
           className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center"
           style={{ transform: `translateY(${refreshing ? 16 : Math.min(pull, 40)}px)` }}
         >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1a2332]/90 shadow-lg">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card shadow-lg">
             <Loader2 className={cn('h-4 w-4 text-primary', refreshing && 'animate-spin')} />
           </div>
         </div>

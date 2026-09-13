@@ -10,7 +10,7 @@ export function BossMStaffCard({ staff }: { staff: AnaStaffSummary }) {
   return (
     <section className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="flex items-center justify-between px-4 pb-1 pt-3.5">
-        <h2 className="text-sm font-semibold text-foreground">Personel</h2>
+        <h2 className="boss-card-title">Personel</h2>
         <Link href="/boss-m/personel" className="text-[11px] font-medium text-primary">
           Liste
         </Link>
@@ -30,7 +30,7 @@ export function BossMStaffCard({ staff }: { staff: AnaStaffSummary }) {
         </div>
 
         {staff.topPerformer ? (
-          <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
+          <div className="boss-inset-row flex items-center gap-3 rounded-xl border px-3 py-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
               {staff.topPerformer
                 .split(/\s+/)

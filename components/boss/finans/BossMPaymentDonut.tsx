@@ -53,8 +53,8 @@ export function BossMPaymentDonut({ slices, total }: BossMPaymentDonutProps) {
 
   return (
     <div className="mx-4 rounded-2xl border border-border bg-card/90 p-4 backdrop-blur-[2px]">
-      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Ödeme Dağılımı
+      <span className="boss-card-title">
+        Ödeme dağılımı
       </span>
 
       <div className="mt-4 flex items-center gap-5">
