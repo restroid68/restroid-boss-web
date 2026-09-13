@@ -14,6 +14,7 @@ const routes = [
   '/boss-m/kasa',
   '/boss-m/kasa/hareket',
   '/boss-m/menu',
+  '/boss-m/menu/new',
   '/boss-m/urunler',
   '/boss-m/personel',
   '/boss-m/cariler',

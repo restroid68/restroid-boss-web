@@ -144,11 +144,14 @@ function mapCatalogRow(row: CatalogRow): MenuItem & { sku: string; categoryId?: 
     stockStatus === 'depleted' ||
     row.depleted === true ||
     row.isDepleted === true
+  const statusKey = str(row.status).toLocaleLowerCase('tr-TR')
   const active =
     row.active !== false &&
     row.isActive !== false &&
     row.hidden !== true &&
-    row.status !== 'passive'
+    row.isHidden !== true &&
+    statusKey !== 'passive' &&
+    statusKey !== 'pasif'
   const servicePricesRaw = row.servicePrices
   const servicePrices =
     servicePricesRaw && typeof servicePricesRaw === 'object' && !Array.isArray(servicePricesRaw)
@@ -254,6 +257,12 @@ export async function patchProductStockStatus(
   return (await saveProductCatalogRow({ uuid, code, stockStatus })).ok
 }
 
+function invalidateCatalogCaches(uuid?: string) {
+  invalidateBossCache('page:catalog')
+  invalidateBossCache('fn:loadCatalogPage')
+  if (uuid) invalidateBossCache(`page:product-row:${uuid}`)
+}
+
 /** Katalog satırı kaydı — tam satır gönderilmeli (kısmi patch ad/kategori siler). */
 export async function saveProductCatalogRow(
   row: Record<string, unknown>,
@@ -271,12 +280,49 @@ export async function saveProductCatalogRow(
     timeoutMs: 60_000,
   })
   if (res.ok) {
-    invalidateBossCache('page:catalog')
-    invalidateBossCache('fn:loadCatalogPage')
-    if (uuid) invalidateBossCache(`page:product-row:${uuid}`)
+    invalidateCatalogCaches(uuid)
     return { ok: true }
   }
   return { ok: false, error: res.error || 'Kayıt başarısız' }
+}
+
+/** Yeni ürün — tek satır POST (toplu patch oluşturmaz). */
+export async function createProductCatalogRow(
+  row: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string; uuid?: string }> {
+  const code = str(row.code)
+  if (!code) return { ok: false, error: 'PLU zorunludur.' }
+  const body = { ...row }
+  delete body.uuid
+  const res = await bossFetch<unknown>('/api/products', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    timeoutMs: 60_000,
+  })
+  if (!res.ok) return { ok: false, error: res.error || 'Ürün eklenemedi.' }
+  const map = asMap(res.data)
+  const item = asMap(map?.item) ?? map
+  const uuid = str(item?.uuid)
+  invalidateCatalogCaches(uuid)
+  return { ok: true, uuid: uuid || undefined }
+}
+
+export async function deleteProductCatalogRow(
+  uuid: string,
+): Promise<{ ok: boolean; error?: string; outcome?: 'deleted' | 'deactivated' }> {
+  const id = str(uuid)
+  if (!id) return { ok: false, error: 'Ürün kimliği yok.' }
+  const res = await bossFetch<{ ok?: boolean; outcome?: string }>('/api/products/by-uuid/' + encodeURIComponent(id), {
+    method: 'DELETE',
+    timeoutMs: 30_000,
+  })
+  if (!res.ok) return { ok: false, error: res.error || 'Ürün silinemedi.' }
+  invalidateCatalogCaches(id)
+  const outcome = str(res.data?.outcome)
+  return {
+    ok: true,
+    outcome: outcome === 'deactivated' ? 'deactivated' : 'deleted',
+  }
 }
 
 /** Menü yönetimi — ürün satırı kısmi güncelleme (fiyat / KDV / üretim yeri vb.). */

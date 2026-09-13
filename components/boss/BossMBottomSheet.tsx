@@ -12,9 +12,11 @@ type Props = {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
+  /** Onay gibi kısa içerik — tam yükseklik dayatma yok */
+  compact?: boolean
 }
 
-export function BossMBottomSheet({ open, title, subtitle, onClose, children, footer }: Props) {
+export function BossMBottomSheet({ open, title, subtitle, onClose, children, footer, compact }: Props) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -36,7 +38,10 @@ export function BossMBottomSheet({ open, title, subtitle, onClose, children, foo
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="flex min-h-[52vh] max-h-[78vh] flex-col rounded-t-2xl border-t border-border bg-[var(--background)]"
+        className={cn(
+          'flex flex-col rounded-t-2xl border-t border-border bg-[var(--background)]',
+          compact ? 'max-h-[50vh]' : 'min-h-[52vh] max-h-[78vh]',
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 flex-col px-4 pt-2 pb-3">

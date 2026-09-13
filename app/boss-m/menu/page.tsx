@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, X, ChevronRight, Eye, EyeOff, Filter, FilterX } from 'lucide-react'
+import { Search, X, ChevronRight, Eye, EyeOff, Filter, FilterX, Plus } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -84,6 +84,14 @@ export default function BossMMenuPage() {
               className="flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground transition-colors active:bg-surface-2"
             >
               {searchOpen ? <X size={18} /> : <Search size={18} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/boss-m/menu/new')}
+              aria-label="Ürün ekle"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-primary transition-colors active:bg-primary/15"
+            >
+              <Plus size={20} strokeWidth={2.2} />
             </button>
           </div>
         }
@@ -236,6 +244,18 @@ export default function BossMMenuPage() {
               items.length === 0
                 ? 'Bu şubede henüz katalog ürünü yok.'
                 : 'Arama veya filtre kriterlerinizi değiştirin.'
+            }
+            action={
+              items.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => router.push('/boss-m/menu/new')}
+                  className="mt-1 inline-flex h-11 items-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-primary"
+                >
+                  <Plus size={16} />
+                  Ürün ekle
+                </button>
+              ) : undefined
             }
           />
         ) : (

@@ -16,6 +16,7 @@ import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMMoneyInput } from '@/components/boss/BossMMoneyInput'
 import { BossMSearchCreate } from '@/components/boss/BossMSearchCreate'
 import { BossMSwitch } from '@/components/boss/BossMSwitch'
+import { BossMBottomSheet } from '@/components/boss/BossMBottomSheet'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import { BOSS_TTL } from '@/lib/boss-page-cache'
@@ -23,9 +24,12 @@ import { parseMoneyTR, sanitizeMoneyTyping } from '@/lib/boss-money'
 import { cn } from '@/lib/utils'
 import {
   CHANNEL_ORDER,
+  createProductCatalogRow,
   deleteBossProductGalleryImage,
+  deleteProductCatalogRow,
   describeBossPluError,
   isDisallowedSizeRatioOne,
+  isNewProductEditorId,
   loadProductCatalogRow,
   loadProductEditorLookups,
   mapUnitToLabel,
@@ -43,6 +47,7 @@ import {
   productKindOf,
   sanitizeBossPlu,
   saveProductCatalogRow,
+  suggestNextBossProductPluFromCatalog,
   toggleId,
   uploadBossProductGalleryImage,
   uploadBossProductMainImage,
@@ -66,6 +71,7 @@ const EMPTY_LOOKUPS: BossProductEditorLookups = {
   allergens: [],
   channelLabels: {},
   visibleChannelIds: [...CHANNEL_ORDER],
+  source: 'mock',
 }
 
 function digitsOnly(raw: string, maxLen = 8): string {
@@ -180,6 +186,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   const mainFileRef = useRef<HTMLInputElement>(null)
   const galleryFileRef = useRef<HTMLInputElement>(null)
   const hydratedUuid = useRef<string | null>(null)
+  const isNew = isNewProductEditorId(uuid)
 
   const { data: row, loading: rowLoading } = useBossLoad(
     () => loadProductCatalogRow(uuid),
@@ -244,6 +251,72 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   const [saved, setSaved] = useState(false)
   const [mediaBusy, setMediaBusy] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!isNew) return
+    if (lookupLoading) return
+    if (hydratedUuid.current === 'new') return
+    hydratedUuid.current = 'new'
+    setKind('item')
+    setName('')
+    setBarcode('')
+    setSortOrder('')
+    setCategoryId('')
+    setUnitLabel('Adet')
+    setPriceByService(false)
+    setSinglePrice('')
+    setSingleOriginal('')
+    setOpenPriced(false)
+    setOpenMin('')
+    setOpenMax('')
+    setTaxRateId(lookups.taxes[0]?.id ?? '')
+    setProductionByService(false)
+    setAreasAll([])
+    setAreasByChannel({})
+    setSalesOn(true)
+    setHidden(false)
+    setTukendi(false)
+    setSalesModeByService(false)
+    const seNext: Record<string, boolean> = {}
+    for (const ch of CHANNEL_ORDER) seNext[ch] = true
+    setSalesEnabled(seNext)
+    setTimeRestricted(false)
+    setTimeStart('')
+    setTimeEnd('')
+    const tsNext: Record<string, boolean> = {}
+    for (const ch of CHANNEL_ORDER) tsNext[ch] = true
+    setTimeServices(tsNext)
+    setPrepMinutes('')
+    setCalorie('')
+    setShortDescription('')
+    setLongDescription('')
+    setVideoUrl('')
+    setTagLabels([])
+    setMenuGroupIds([])
+    setPreferenceIds([])
+    setAllergenIds([])
+    setNoAllergens(true)
+    setSizeRows([])
+    setCustomSizeEnabled(false)
+    setStandardSizeName('')
+    setWeightMin('')
+    setWeightMax('')
+    setWeightStep('')
+    setPreview('')
+    setGallery([])
+    void suggestNextBossProductPluFromCatalog().then((plu) => {
+      if (hydratedUuid.current !== 'new') return
+      setCode((prev) => (prev ? prev : plu))
+    })
+  }, [isNew, lookupLoading, lookups])
+
+  useEffect(() => {
+    if (!isNew) return
+    if (taxRateId || !lookups.taxes[0]?.id) return
+    setTaxRateId(lookups.taxes[0].id)
+  }, [isNew, taxRateId, lookups.taxes])
 
   useEffect(() => {
     if (!row) return
@@ -317,7 +390,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
     setGallery(parseGallery(row))
   }, [row])
 
-  const loading = rowLoading || lookupLoading
+  const loading = isNew ? lookupLoading : rowLoading || lookupLoading
   const isMenu = kind === 'menu'
   const isMass = !isMenu && mapUnitToStorage(unitLabel) === 'mass'
   const channels = lookups.visibleChannelIds
@@ -339,7 +412,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   ]
 
   const mediaCount = (preview ? 1 : 0) + gallery.length
-  const canAddMedia = mediaCount < 5 && Boolean(sanitizeBossPlu(code))
+  const canAddMedia = !isNew && mediaCount < 5 && Boolean(sanitizeBossPlu(code))
 
   const rawSingle = parseMoneyTR(singlePrice)
   const channelOk = priceByService
@@ -362,7 +435,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   }
 
   async function handleMainFile(file: File | undefined) {
-    if (!file || !original) return
+    if (!file || isNew || !original) return
     setMediaBusy(true)
     setSaveError(null)
     const res = await uploadBossProductMainImage({ uuid, code: sanitizeBossPlu(code), file })
@@ -376,7 +449,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   }
 
   async function handleGalleryFile(file: File | undefined) {
-    if (!file || !original) return
+    if (!file || isNew || !original) return
     setMediaBusy(true)
     setSaveError(null)
     const res = await uploadBossProductGalleryImage({ uuid, code: sanitizeBossPlu(code), file })
@@ -390,7 +463,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   }
 
   async function handleDeleteGallery(galleryId: string) {
-    if (!original) return
+    if (isNew || !original) return
     setMediaBusy(true)
     setSaveError(null)
     const res = await deleteBossProductGalleryImage({
@@ -412,7 +485,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
   }
 
   async function handleSave() {
-    if (!original) return
+    if (!isNew && !original) return
     const pluErr = describeBossPluError(code)
     if (pluErr) {
       setSaveError(pluErr)
@@ -423,7 +496,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
       return
     }
     const cat = lookups.categories.find((c) => c.id === categoryId)
-    const categoryName = cat?.name || String(original.category ?? '').trim()
+    const categoryName = cat?.name || String(original?.category ?? '').trim()
     if (!categoryName) {
       setSaveError('Kategori zorunlu.')
       return
@@ -482,8 +555,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
 
     const prefs = isMenu ? [] : preferenceIds
     const payload: BossProductRow = {
-      ...original,
-      uuid,
+      ...(isNew ? { stock: '—', image: '/placeholder.svg' } : original),
       name: name.trim(),
       code: sanitizeBossPlu(code),
       barcode: barcode.trim() || undefined,
@@ -548,18 +620,27 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
             weightSaleStepGrams: weightStep ? Number(weightStep) : null,
           }
         : {}),
-      stockLinkMode: original.stockLinkMode,
-      stockLinkWarehouse: original.stockLinkWarehouse,
-      productionFinishedProductId: original.productionFinishedProductId,
-      recipeDefinitionId: original.recipeDefinitionId,
-      recipeRows: original.recipeRows,
+      ...(isNew
+        ? {}
+        : {
+            uuid,
+            stockLinkMode: original?.stockLinkMode,
+            stockLinkWarehouse: original?.stockLinkWarehouse,
+            productionFinishedProductId: original?.productionFinishedProductId,
+            recipeDefinitionId: original?.recipeDefinitionId,
+            recipeRows: original?.recipeRows,
+          }),
     }
 
-    const previousPlu = sanitizeBossPlu(String(original.code ?? ''))
-    const nextPlu = sanitizeBossPlu(code)
-    const res = await saveProductCatalogRow(payload, {
-      replaceProductCode: previousPlu && previousPlu !== nextPlu ? previousPlu : undefined,
-    })
+    const res = isNew
+      ? await createProductCatalogRow(payload)
+      : await saveProductCatalogRow(payload, {
+          replaceProductCode:
+            sanitizeBossPlu(String(original?.code ?? '')) &&
+            sanitizeBossPlu(String(original?.code ?? '')) !== sanitizeBossPlu(code)
+              ? sanitizeBossPlu(String(original?.code ?? ''))
+              : undefined,
+        })
     setSaving(false)
     if (!res.ok) {
       setSaveError(res.error || 'Kayıt başarısız')
@@ -568,14 +649,29 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
     setSaved(true)
     window.setTimeout(() => {
       setSaved(false)
-      router.back()
+      router.replace('/boss-m/menu')
     }, 900)
+  }
+
+  async function handleDelete() {
+    if (isNew || !uuid) return
+    setDeleting(true)
+    setSaveError(null)
+    const res = await deleteProductCatalogRow(uuid)
+    setDeleting(false)
+    if (!res.ok) {
+      setSaveError(res.error || 'Ürün silinemedi.')
+      setDeleteOpen(false)
+      return
+    }
+    setDeleteOpen(false)
+    router.replace('/boss-m/menu')
   }
 
   if (loading) {
     return (
       <main className="flex min-h-0 flex-1 flex-col bg-transparent">
-        <BossMPageHeader title="Ürün" showBack />
+        <BossMPageHeader title={isNew ? 'Yeni ürün' : 'Ürün'} showBack />
         <div className="flex-1 space-y-4 px-4 py-4 animate-pulse">
           <div className="h-8 w-24 rounded-full bg-surface-2" />
           <div className="h-28 rounded-2xl bg-surface-2" />
@@ -585,7 +681,7 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
     )
   }
 
-  if (!original) {
+  if (!isNew && !original) {
     return (
       <main className="flex min-h-0 flex-1 flex-col bg-transparent">
         <BossMPageHeader title="Ürün" showBack />
@@ -598,7 +694,22 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-transparent">
-      <BossMPageHeader title={name.trim() || 'Ürün'} showBack />
+      <BossMPageHeader
+        title={isNew ? 'Yeni ürün' : name.trim() || 'Ürün'}
+        showBack
+        trailing={
+          isNew ? undefined : (
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              aria-label="Ürünü sil"
+              className="flex h-11 w-11 items-center justify-center rounded-xl text-danger transition-colors active:bg-danger/10"
+            >
+              <Trash2 size={18} />
+            </button>
+          )
+        }
+      />
 
       <div className="flex-1 overflow-y-auto overscroll-none pb-36">
         {!keyboardOpen && (
@@ -854,6 +965,12 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
         )}
 
         <Section id="sec-medya" title="Medya">
+          {isNew ? (
+            <p className="rounded-2xl border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+              Görsel eklemek için önce ürünü kaydedin.
+            </p>
+          ) : (
+            <>
           <input
             ref={mainFileRef}
             type="file"
@@ -927,6 +1044,8 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
                 </div>
               ))}
             </div>
+          )}
+            </>
           )}
           <input
             className={cn(FIELD, 'mt-3')}
@@ -1358,11 +1477,47 @@ export function BossMProductEditor({ uuid }: { uuid: string }) {
             </>
           ) : saving ? (
             'Kaydediliyor…'
+          ) : isNew ? (
+            'Ürünü ekle'
           ) : (
             'Kaydet'
           )}
         </button>
       </div>
+
+      <BossMBottomSheet
+        open={deleteOpen}
+        title="Ürün silinsin mi?"
+        subtitle={name.trim() ? name.trim() : undefined}
+        compact
+        onClose={() => {
+          if (!deleting) setDeleteOpen(false)
+        }}
+        footer={
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setDeleteOpen(false)}
+              className="flex h-12 items-center justify-center rounded-2xl border border-border bg-card text-sm font-semibold text-foreground active:bg-surface-2"
+            >
+              Vazgeç
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void handleDelete()}
+              className="flex h-12 items-center justify-center rounded-2xl bg-danger text-sm font-semibold text-white active:scale-[0.98] disabled:opacity-60"
+            >
+              {deleting ? 'Siliniyor…' : 'Sil'}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          Menüden kaldırılır. Stokta kullanıldıysa silinmez, pasife alınır.
+        </p>
+      </BossMBottomSheet>
     </main>
   )
 }

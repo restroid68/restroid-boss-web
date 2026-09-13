@@ -2,15 +2,50 @@
  * Menü ürün düzenleyici — panel ProductRow (stok ilişkilendirme hariç).
  */
 import { bossFetch } from '@/lib/boss-api'
+import { readNativeSession } from '@/lib/boss-bridge'
 import { formatMoneyTR } from '@/lib/boss-money'
 import {
   loadBossProductionAreas,
   loadBossTaxRates,
+  createProductCatalogRow,
+  deleteProductCatalogRow,
+  loadCatalogPage,
   loadKanallarPage,
   saveProductCatalogRow,
   type BossProductionAreaOption,
   type BossTaxRateOption,
 } from '@/lib/boss-page-data'
+
+export const NEW_PRODUCT_EDITOR_ID = 'new'
+
+export function isNewProductEditorId(id: string): boolean {
+  return str(id).toLowerCase() === NEW_PRODUCT_EDITOR_ID
+}
+
+/** Katalogdaki sayısal PLU’ların bir fazlası; boşsa `1`. */
+export function suggestNextBossProductPlu(codes: Iterable<string>): string {
+  let max = BigInt(0)
+  for (const raw of codes) {
+    const s = sanitizeBossPlu(raw)
+    if (!s) continue
+    try {
+      const n = BigInt(s)
+      if (n > max) max = n
+    } catch {
+      /* ignore */
+    }
+  }
+  const next = String(max + BigInt(1))
+  if (next.length > PRODUCT_PLU_MAX_LEN) return '9'.repeat(PRODUCT_PLU_MAX_LEN)
+  return next
+}
+
+export async function suggestNextBossProductPluFromCatalog(): Promise<string> {
+  const page = await loadCatalogPage()
+  return suggestNextBossProductPlu(
+    page.items.map((i) => String(i.code ?? i.sku ?? '')),
+  )
+}
 
 export const CHANNEL_ORDER = [
   'dinein',
@@ -55,6 +90,7 @@ export type BossProductEditorLookups = {
   allergens: BossAllergenOption[]
   channelLabels: Record<string, string>
   visibleChannelIds: ChannelCode[]
+  source: 'api' | 'mock'
 }
 
 export type BossSizeRow = {
@@ -158,7 +194,7 @@ export function unwrapPayload(data: unknown): unknown {
 
 export async function loadProductCatalogRow(uuid: string): Promise<BossProductRow | null> {
   const id = str(uuid)
-  if (!id) return null
+  if (!id || isNewProductEditorId(id)) return null
   const byUuid = await bossFetch<unknown>('/api/products/catalog/row', {
     query: { uuid: id },
   })
@@ -223,6 +259,19 @@ function namedOptions(raw: unknown[]): BossNamedOption[] {
 }
 
 export async function loadProductEditorLookups(): Promise<BossProductEditorLookups> {
+  const empty: BossProductEditorLookups = {
+    taxes: [],
+    areas: [],
+    categories: [],
+    menuGroups: [],
+    preferenceGroups: [],
+    allergens: [],
+    channelLabels: { ...CHANNEL_FALLBACK_LABELS },
+    visibleChannelIds: [...CHANNEL_ORDER],
+    source: 'mock',
+  }
+  if (!readNativeSession()?.token) return empty
+
   const [taxes, areas, channels, catsRes, menuRes, prefRes, algRes] = await Promise.all([
     loadBossTaxRates(),
     loadBossProductionAreas(),
@@ -289,6 +338,7 @@ export async function loadProductEditorLookups(): Promise<BossProductEditorLooku
     allergens,
     channelLabels,
     visibleChannelIds,
+    source: 'api',
   }
 }
 
@@ -506,4 +556,4 @@ export async function deleteBossProductGalleryImage(opts: {
   return { ok: true, item: extractSavedItem(res.data) }
 }
 
-export { saveProductCatalogRow }
+export { createProductCatalogRow, deleteProductCatalogRow, saveProductCatalogRow }
