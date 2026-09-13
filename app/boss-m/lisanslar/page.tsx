@@ -121,10 +121,10 @@ export default function BossMListanslarPage() {
   const missing  = data.list.filter((l) => l.status === 'yok').length
 
   return (
-    <main className="flex flex-col min-h-0 bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader title="Lisanslar" showBack />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
             {[...Array(4)].map((_, i) => (

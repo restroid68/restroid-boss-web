@@ -125,7 +125,7 @@ export default function BossMUrunlerPage() {
   const emptyCount = products.filter((p) => statusOf(p) === 'tukendi').length
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       {/* ── Header with inline search toggle ── */}
       <BossMPageHeader
         title="Ürün Stok"
@@ -192,7 +192,7 @@ export default function BossMUrunlerPage() {
       </div>
 
       {/* ── Product list ── */}
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-4">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="space-y-2 animate-pulse">
             {[...Array(6)].map((_, i) => (

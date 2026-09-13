@@ -136,10 +136,50 @@ const TITLE_ONLY_RE =
   /^(İptal|İkram|Zayi|Hesap ayırma|Masa taşıma|Masalar birleştirildi|Masa birleştirme|İndirim|Ödeme|Ödeme iptal)\s*:?\s*$/i
 const MASA_ARROW_RE = /Masa\s+(\d+)\s*(?:→|->)\s*(\d+)/i
 
+const GENERIC_ACTOR_RE = /^(personel|garson|bir garson)$/iu
+
+function isGenericBossActorName(name?: string | null): boolean {
+  const s = String(name ?? '').trim()
+  if (!s) return true
+  return GENERIC_ACTOR_RE.test(s)
+}
+
+function pickBossActorName(...candidates: Array<unknown>): string {
+  for (const c of candidates) {
+    const s = String(c ?? '').trim()
+    if (s && !isGenericBossActorName(s)) return s
+  }
+  return ''
+}
+
+function applyBossActorToSummary(summary: string, actor?: string | null): string {
+  const raw = String(summary ?? '').trim()
+  const name = pickBossActorName(actor)
+  if (!raw || !name) return raw
+  if (/^Personel\b/iu.test(raw)) {
+    return raw.replace(/^Personel\b/iu, name)
+  }
+  return raw
+}
+
+function actorFromNotification(raw: BossNotificationApiRow): string {
+  const detail = (raw.detailJson ?? {}) as Record<string, unknown>
+  return (
+    pickBossActorName(
+      raw.actorName,
+      detail.actorName,
+      detail.userName,
+      detail.personnelName,
+      detail.action_employee_name,
+      detail.actionEmployeeName,
+    ) || 'Personel'
+  )
+}
+
 export function displayBossNotificationSummary(raw: BossNotificationApiRow): string {
   const eventType = String(raw.eventType ?? '').trim()
   const summary = String(raw.summary ?? '').trim()
-  const actor = String(raw.actorName ?? '').trim() || 'Personel'
+  const actor = actorFromNotification(raw)
   const table = String(raw.tableNumber ?? '').trim()
   const detail = (raw.detailJson ?? {}) as Record<string, unknown>
   const before =
@@ -158,7 +198,7 @@ export function displayBossNotificationSummary(raw: BossNotificationApiRow): str
     eventType === 'table_move' && MASA_ARROW_RE.test(summary) && !summary.includes('numaralı masayı')
   const rewriteSplit =
     eventType === 'table_split' && /Hesap ayırma/i.test(summary) && !summary.includes('hesabı ayırdı')
-  if (!debug && !rewriteMove && !rewriteSplit) return summary
+  if (!debug && !rewriteMove && !rewriteSplit) return applyBossActorToSummary(summary, actor)
 
   const arrow = MASA_ARROW_RE.exec(summary)
   if (eventType === 'table_move') {
@@ -185,7 +225,7 @@ export function displayBossNotificationSummary(raw: BossNotificationApiRow): str
     if (name) return `${actor} ${qty} adet ${name} ${verb}`
     return table ? `${actor} ${table} numaralı masada ${short}` : `${actor} ${short}`
   }
-  return summary.replace(UID_RE, '').replace(/\s{2,}/g, ' ').trim()
+  return applyBossActorToSummary(summary.replace(UID_RE, '').replace(/\s{2,}/g, ' ').trim(), actor)
 }
 
 export function mapNotificationToAuditAlert(
@@ -195,6 +235,7 @@ export function mapNotificationToAuditAlert(
   const eventType = String(raw.eventType ?? '').trim()
   const table = String(raw.tableNumber ?? '').trim()
   const title = String(raw.title ?? '').trim() || 'Hareket'
+  const actor = actorFromNotification(raw)
   const summary = displayBossNotificationSummary(raw)
   const party = String(raw.detailJson?.partyName ?? '').trim()
   const action = String(raw.detailJson?.action ?? '').trim()
@@ -203,7 +244,7 @@ export function mapNotificationToAuditAlert(
     severity: eventSeverity(eventType, action),
     category: eventCategory(eventType),
     title,
-    who: String(raw.actorName ?? '').trim() || 'Personel',
+    who: actor,
     target: table ? `Masa ${table}` : party || summary || '—',
     amount: notificationAmount(raw),
     time: formatBossEventTime(raw.createdAt),

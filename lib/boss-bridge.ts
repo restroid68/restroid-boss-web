@@ -122,6 +122,10 @@ export function readNativeSession(): BossNativeSession | null {
   return s
 }
 
+export function hasNativeBossBridge(): boolean {
+  return typeof window !== 'undefined' && typeof window.RestroidBoss?.postMessage === 'function'
+}
+
 export function postToNative(message: BossToNativeMessage): void {
   if (typeof window === 'undefined') return
   try {

@@ -42,10 +42,10 @@ export default function BossMNakitVardiyaPage() {
   const s = data.summary
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader title="Nakit vardiya" showBack />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         <p className="text-xs text-muted-foreground leading-relaxed mb-4">
           Çekmece veya garson cüzdanı teslimi. Puantaj (işe giriş saati) ve Z raporu değildir.
         </p>

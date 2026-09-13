@@ -103,7 +103,7 @@ export function BossMaiComposer({
         ))}
       </div>
 
-      <div className="flex items-end gap-2.5 px-4 pb-4">
+      <div className="flex items-end gap-2.5 px-4 pb-6">
         <div className="flex-1 flex items-end bg-surface-2 border border-border rounded-2xl px-4 py-2.5 min-h-[44px]">
           <textarea
             ref={textareaRef}

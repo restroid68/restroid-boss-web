@@ -35,7 +35,7 @@ export default function BossMTemaPage() {
   const current = prefs?.themeAccent ?? 'blue'
 
   return (
-    <main className="flex flex-col gap-0 pb-4">
+    <main className="flex flex-col gap-0 pb-8">
       <BossMPageHeader title="Tema rengi" showBack />
 
       <section className="mx-4 mt-1 rounded-2xl border border-border bg-card overflow-hidden">

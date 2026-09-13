@@ -12,6 +12,13 @@ import { cn } from '@/lib/utils'
 
 // ── Channel row ────────────────────────────────────────────────────────────────
 
+function channelDisplayLabel(channel: ServiceChannel): string {
+  if (channel.id === 'dinein' || channel.id === 'dine_in' || /^dine[\s_-]*in$/i.test(channel.label)) {
+    return 'Masa'
+  }
+  return channel.label
+}
+
 function ChannelRow({
   channel,
   onToggle,
@@ -32,7 +39,7 @@ function ChannelRow({
       {/* Label */}
       <div className="flex-1 min-w-0">
         <p className={cn('text-sm font-semibold leading-tight', channel.enabled ? 'text-foreground' : 'text-muted-foreground')}>
-          {channel.label}
+          {channelDisplayLabel(channel)}
         </p>
         <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
           {channel.description}
@@ -42,7 +49,7 @@ function ChannelRow({
       <BossMSwitch
         checked={channel.enabled}
         onChange={(v) => onToggle(channel.id, v)}
-        aria-label={channel.label}
+        aria-label={channelDisplayLabel(channel)}
       />
     </div>
   )
@@ -85,7 +92,7 @@ export default function BossMKanallarPage() {
   const activeCount = channels.filter((c) => c.enabled).length
 
   return (
-    <main className="flex flex-col pb-4">
+    <main className="flex flex-col pb-8">
       <BossMPageHeader title="Servis Kanalları" showBack />
 
       {/* ── Summary strip ── */}

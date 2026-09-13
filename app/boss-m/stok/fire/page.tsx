@@ -94,7 +94,7 @@ export default function BossMStokFirePage() {
   const entries = data.byPeriod[period] ?? []
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
       <BossMPageHeader title="Fire / Çıkışlar" showBack />
 
       <div className="flex gap-2 px-4 pb-4">
@@ -134,7 +134,7 @@ export default function BossMStokFirePage() {
             </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto overscroll-none pb-[72px] px-4">
+          <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
             {entries.length === 0 ? (
               <BossMEmptyState
                 icon={Flame}

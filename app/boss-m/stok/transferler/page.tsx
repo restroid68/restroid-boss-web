@@ -141,7 +141,7 @@ export default function BossMStokTransferlerPage() {
   }
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent overflow-hidden">
       <BossMPageHeader title="Transferler" showBack />
 
       <div className="flex gap-2 px-4 pb-4 overflow-x-auto">
@@ -165,7 +165,7 @@ export default function BossMStokTransferlerPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[72px] px-4">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
             {[...Array(3)].map((_, i) => (

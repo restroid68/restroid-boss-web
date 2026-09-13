@@ -8,8 +8,8 @@ import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
 import { BossMMoneyText } from '@/components/boss/BossMMoneyText'
 import { BossMSearchCreate } from '@/components/boss/BossMSearchCreate'
-import type { Account } from '@/lib/boss-mock'
-import { loadKasaDashboard } from '@/lib/boss-p0-data'
+import type { Account, LedgerEntry } from '@/lib/boss-mock'
+import { loadKasaDashboard, loadKasaLedger } from '@/lib/boss-p0-data'
 import { createFinanceAccount } from '@/lib/boss-page-data'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { cn } from '@/lib/utils'
@@ -40,21 +40,82 @@ const ACTIONS = [
   { key: 'transfer', label: 'Transfer', icon: ArrowLeftRight, color: 'text-info    bg-info/10' },
 ]
 
+const EMPTY_LEDGER: LedgerEntry[] = []
+
+function KasaAccountMovements({ accountId }: { accountId: string }) {
+  const { data: ledger, loading: ledgerLoading } = useBossLoad(
+    () => loadKasaLedger(accountId),
+    EMPTY_LEDGER,
+    { cacheKey: `page:kasa-ledger:${accountId}:v2`, ttlMs: 20_000 },
+  )
+
+  if (ledgerLoading) {
+    return <BossMSkeletonList rows={4} />
+  }
+  if (ledger.length === 0) {
+    return (
+      <BossMEmptyState
+        icon={Inbox}
+        title="Hareket bulunamadı"
+        description="Bu hesap için henüz kayıt yok."
+      />
+    )
+  }
+
+  return (
+    <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="flex flex-col divide-y divide-border">
+        {ledger.map((entry) => (
+          <div key={entry.id} className="flex items-start gap-3 px-4 py-3.5">
+            <div
+              className={cn(
+                'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                entry.sign === 'positive' ? 'bg-success' : 'bg-danger',
+              )}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium leading-snug break-words text-foreground">
+                {entry.description}
+              </p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] text-muted-foreground">{entry.datetime}</span>
+                <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {entry.category}
+                </span>
+              </div>
+            </div>
+            <span
+              className={cn(
+                'shrink-0 text-right text-sm font-bold tabular-nums',
+                entry.sign === 'positive' ? 'text-success' : 'text-danger',
+              )}
+            >
+              {entry.amount}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function BossMCashPage() {
   const router = useRouter()
   // Boş başlangıç — yüklenene kadar skeleton gösterilir, mock hesap/hareket yok
-  const { data, loading, setData, reload } = useBossLoad(loadKasaDashboard, {
-    accounts: [],
-    ledger: [],
-    source: 'mock',
-  })
+  const { data, loading, setData, reload } = useBossLoad(
+    loadKasaDashboard,
+    { accounts: [], source: 'mock' },
+    { cacheKey: 'page:kasa', ttlMs: 20_000 },
+  )
   const accounts = data.accounts
-  const ledger = data.ledger
   const source = data.source
   const [selectedId, setSelectedId] = useState<string>('')
   const [showNewAccount, setShowNewAccount] = useState(false)
   const [addingAccount, setAddingAccount] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+
+  const activeId =
+    (selectedId && accounts.some((a) => a.id === selectedId) ? selectedId : accounts[0]?.id) || ''
 
   useEffect(() => {
     setSelectedId((prev) => {
@@ -74,7 +135,6 @@ export default function BossMCashPage() {
     }
     setData({
       accounts: [...accounts, res.account],
-      ledger,
       source: 'api',
     })
     setSelectedId(res.account.id)
@@ -85,17 +145,17 @@ export default function BossMCashPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 bg-transparent pb-4">
+      <main className="flex flex-col gap-4 bg-transparent pb-8">
         <BossMPageHeader title="Kasa & Banka" />
         <BossMSkeletonList rows={4} />
       </main>
     )
   }
 
-  const account = accounts.find((a) => a.id === selectedId) ?? accounts[0]
+  const account = accounts.find((a) => a.id === activeId) ?? accounts[0]
   if (!account) {
     return (
-      <main className="flex flex-col gap-4 bg-transparent pb-4">
+      <main className="flex flex-col gap-4 bg-transparent pb-8">
         <BossMPageHeader title="Kasa & Banka" />
         <BossMEmptyState
           icon={Inbox}
@@ -125,7 +185,7 @@ export default function BossMCashPage() {
   const Icon = account ? accountIcons[account.type] : Wallet
 
   return (
-    <main className="flex flex-col gap-4 bg-transparent pb-4">
+    <main className="flex flex-col gap-4 bg-transparent pb-8">
       <BossMPageHeader
         title="Kasa & Banka"
         trailing={
@@ -152,7 +212,7 @@ export default function BossMCashPage() {
       <div className="flex gap-2 overflow-x-auto px-4 pb-0.5">
         {accounts.map((acc) => {
           const AccIcon = accountIcons[acc.type]
-          const active = selectedId === acc.id
+          const active = activeId === acc.id
           return (
             <button
               key={acc.id}
@@ -241,7 +301,11 @@ export default function BossMCashPage() {
             <button
               key={a.key}
               type="button"
-              onClick={() => router.push(`/boss-m/kasa/hareket?type=${a.key}`)}
+              onClick={() =>
+                router.push(
+                  `/boss-m/kasa/hareket?type=${a.key}&accountId=${encodeURIComponent(activeId)}`,
+                )
+              }
               className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-card/90 py-3 transition-transform active:scale-[0.96]"
             >
               <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg', a.color)}>
@@ -262,46 +326,14 @@ export default function BossMCashPage() {
         <div className="h-px flex-1 bg-border" />
       </div>
 
-      {ledger.length === 0 ? (
+      {activeId ? (
+        <KasaAccountMovements key={activeId} accountId={activeId} />
+      ) : (
         <BossMEmptyState
           icon={Inbox}
           title="Hareket bulunamadı"
           description="Bu hesap için henüz kayıt yok."
         />
-      ) : (
-        <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-card">
-          <div className="flex flex-col divide-y divide-border">
-            {ledger.map((entry) => (
-              <div key={entry.id} className="flex items-center gap-3 px-4 py-3.5">
-                <div
-                  className={cn(
-                    'mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full',
-                    entry.sign === 'positive' ? 'bg-success' : 'bg-danger',
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium leading-tight text-foreground">
-                    {entry.description}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span className="text-[10px] text-muted-foreground">{entry.datetime}</span>
-                    <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {entry.category}
-                    </span>
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    'shrink-0 text-right text-sm font-bold tabular-nums',
-                    entry.sign === 'positive' ? 'text-success' : 'text-danger',
-                  )}
-                >
-                  {entry.amount}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
     </main>
   )

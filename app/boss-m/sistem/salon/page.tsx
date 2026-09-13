@@ -14,7 +14,7 @@ export default function BossMSalonPage() {
   })
 
   return (
-    <main className="flex flex-col pb-4">
+    <main className="flex flex-col pb-8">
       <BossMPageHeader title="Salon / Masa" showBack />
 
       <div className="mx-4 mb-4 bg-card border border-border rounded-2xl px-4 py-3 flex items-center gap-3">

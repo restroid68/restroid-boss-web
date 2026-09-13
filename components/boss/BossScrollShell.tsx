@@ -9,7 +9,8 @@ import { useBossPullToRefresh } from '@/hooks/use-boss-pull-to-refresh'
 import { cn } from '@/lib/utils'
 
 const PULL_REFRESH_PATHS: Record<string, string> = {
-  '/boss-m/ana': 'page:ana:v2',
+  '/boss-m/ana': 'page:ana:',
+  '/boss-m/denetim': 'page:denetim',
 }
 
 export default function BossScrollShell({ children }: { children: ReactNode }) {
@@ -39,7 +40,7 @@ export default function BossScrollShell({ children }: { children: ReactNode }) {
       ) : null}
       <div
         ref={scrollRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain touch-pan-y"
+        className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain touch-pan-y"
         style={
           pull > 0 && !refreshing && isBossTabPath(pathname)
             ? { transform: `translateY(${pull * 0.35}px)`, transition: 'none' }

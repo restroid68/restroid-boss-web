@@ -102,7 +102,7 @@ export default function BossMaiTokenlarPage() {
   const depleted = (data?.balanceTokens ?? 1) <= 0
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
       <BossMPageHeader
         title="AI Token"
         showBack
@@ -118,7 +118,7 @@ export default function BossMaiTokenlarPage() {
         }
       />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
             {[...Array(3)].map((_, i) => (

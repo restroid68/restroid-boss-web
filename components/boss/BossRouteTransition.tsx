@@ -27,7 +27,7 @@ export default function BossRouteTransition({ children }: { children: ReactNode 
   }, [pathname])
 
   return (
-    <div className={cn('min-h-0 flex-1', enter && isBossStackPath(pathname) && 'boss-stack-enter')}>
+    <div className={cn('flex min-h-full flex-col', enter && isBossStackPath(pathname) && 'boss-stack-enter')}>
       {children}
     </div>
   )

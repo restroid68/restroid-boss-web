@@ -89,7 +89,7 @@ export function BossMaiCommandSheet({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 py-4 pb-safe space-y-5">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 py-4 pb-6 space-y-5">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Yıldız ile ana ekrandaki sık kullanılanlara ekle veya çıkar. Satıra dokununca komut gönderilir.
         </p>

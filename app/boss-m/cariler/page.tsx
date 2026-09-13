@@ -1,103 +1,122 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Building2, User, ArrowUpRight, ArrowDownLeft, Minus } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { X, Building2, User, ArrowUpRight, ArrowDownLeft, Search } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
+import { BossMMoneyText } from '@/components/boss/BossMMoneyText'
 import { CARILER } from '@/lib/boss-mock'
 import type { Cari } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadCarilerPage } from '@/lib/boss-page-data'
+import { formatMoneyTR } from '@/lib/boss-money'
 import { cn } from '@/lib/utils'
 
-function balanceLabel(balance: number, type: Cari['type']): string {
-  if (balance === 0) return 'Hesap kapalı'
-  if (type === 'musteri') {
-    return balance > 0 ? `${fmtTL(balance)} alacak` : `${fmtTL(-balance)} borç`
-  }
-  return balance < 0 ? `${fmtTL(-balance)} borçlu` : `${fmtTL(balance)} alacak`
+function moneyLabel(n: number): string {
+  return formatMoneyTR(Math.abs(n), 2)
 }
 
-function balanceColor(balance: number, type: Cari['type']): string {
-  if (balance === 0) return 'text-muted-foreground'
-  if (type === 'musteri') return balance > 0 ? 'text-success' : 'text-danger'
-  return balance < 0 ? 'text-warning' : 'text-success'
+function balanceWords(balance: number): string {
+  return balance > 0 ? 'alacak' : 'borç'
 }
 
-function fmtTL(n: number): string {
-  return `${n.toLocaleString('tr-TR')} ₺`
+function balanceColor(balance: number): string {
+  if (Math.abs(balance) < 0.009) return 'text-muted-foreground'
+  return balance > 0 ? 'text-success' : 'text-danger'
 }
 
 function CariDetailPanel({ cari, onClose }: { cari: Cari; onClose: () => void }) {
+  const hasBook = cari.hasCurrentAccount !== false
   return (
-    <div className="fixed inset-0 bg-background z-40 flex flex-col">
+    <div className="boss-over-native-nav flex flex-col bg-background">
       <BossMPageHeader
         title={cari.name}
         showBack={false}
         trailing={
           <button
+            type="button"
             onClick={onClose}
-            className="flex items-center justify-center w-11 h-11 rounded-xl text-muted-foreground active:bg-surface-2"
+            className="flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground active:bg-surface-2"
           >
             <X size={18} />
           </button>
         }
       />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
-        <div className={cn(
-          'rounded-2xl border px-4 py-4 flex items-center gap-4 mt-1 mb-5',
-          cari.balance === 0
-            ? 'bg-card border-border'
-            : cari.balance > 0
-              ? 'bg-success/5 border-success/20'
-              : 'bg-warning/5 border-warning/20'
-        )}>
-          <div className={cn(
-            'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-            cari.type === 'musteri' ? 'bg-primary/10' : 'bg-warning/10'
-          )}>
-            {cari.type === 'musteri'
-              ? <User size={18} className="text-primary" strokeWidth={1.6} />
-              : <Building2 size={18} className="text-warning" strokeWidth={1.6} />
-            }
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
+        <div
+          className={cn(
+            'mt-1 mb-5 flex items-center gap-4 rounded-2xl border px-4 py-4',
+            !hasBook || Math.abs(cari.balance) < 0.009
+              ? 'border-border bg-card'
+              : cari.balance > 0
+                ? 'border-success/20 bg-success/5'
+                : 'border-danger/20 bg-danger/5',
+          )}
+        >
+          <div
+            className={cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+              cari.type === 'musteri' ? 'bg-primary/10' : 'bg-warning/10',
+            )}
+          >
+            {cari.type === 'musteri' ? (
+              <User size={18} className="text-primary" strokeWidth={1.6} />
+            ) : (
+              <Building2 size={18} className="text-warning" strokeWidth={1.6} />
+            )}
           </div>
-          <div>
-            <p className="text-xs text-muted-foreground">{cari.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}</p>
-            <p className={cn('text-xl font-bold tabular-nums', balanceColor(cari.balance, cari.type))}>
-              {balanceLabel(cari.balance, cari.type)}
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">
+              {cari.type === 'musteri' ? 'Müşteri' : 'Tedarikçi'}
             </p>
+            {hasBook ? (
+              <p className={cn('text-xl font-bold tabular-nums', balanceColor(cari.balance))}>
+                {Math.abs(cari.balance) < 0.009
+                  ? 'Bakiye yok'
+                  : `${moneyLabel(cari.balance)} ${balanceWords(cari.balance)}`}
+              </p>
+            ) : (
+              <p className="text-base font-semibold text-muted-foreground">Cari hesap yok</p>
+            )}
+            {cari.subtitle ? (
+              <p className="mt-1 text-[12px] text-muted-foreground">{cari.subtitle}</p>
+            ) : null}
           </div>
         </div>
 
-        {/* Hareket verisi API'ye bağlı değil — veri yokken bölüm tamamen gizlenir */}
         {cari.ledger.length > 0 && (
           <>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
               Son 5 Hareket
             </p>
-            <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+            <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
               {cari.ledger.map((row, i) => (
                 <div key={i} className="flex items-center gap-3 px-4 py-3.5">
-                  <div className={cn(
-                    'w-7 h-7 rounded-full flex items-center justify-center shrink-0',
-                    row.sign === '+' ? 'bg-success/10' : 'bg-primary/10'
-                  )}>
+                  <div
+                    className={cn(
+                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full',
+                      row.sign === '+' ? 'bg-success/10' : 'bg-primary/10',
+                    )}
+                  >
                     {row.sign === '+' ? (
                       <ArrowUpRight size={13} className="text-success" strokeWidth={2.5} />
                     ) : (
                       <ArrowDownLeft size={13} className="text-primary" strokeWidth={2.5} />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-foreground truncate">{row.desc}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{row.date}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-foreground">{row.desc}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">{row.date}</p>
                   </div>
-                  <span className={cn(
-                    'text-sm font-bold tabular-nums shrink-0',
-                    row.sign === '+' ? 'text-success' : 'text-foreground'
-                  )}>
-                    {row.sign === '+' ? '+' : '−'}{row.amount}
+                  <span
+                    className={cn(
+                      'shrink-0 text-sm font-bold tabular-nums',
+                      row.sign === '+' ? 'text-success' : 'text-foreground',
+                    )}
+                  >
+                    {row.sign === '+' ? '+' : '−'}
+                    {row.amount}
                   </span>
                 </div>
               ))}
@@ -110,68 +129,103 @@ function CariDetailPanel({ cari, onClose }: { cari: Cari; onClose: () => void })
 }
 
 function CariRow({ cari, onTap }: { cari: Cari; onTap: () => void }) {
+  const hasBook = cari.hasCurrentAccount !== false
+  const subtitle = (cari.subtitle ?? '').trim()
   return (
     <button
+      type="button"
       onClick={onTap}
-      className="w-full flex items-center gap-3 px-4 py-4 text-left active:bg-surface-2 transition-colors"
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-surface-2"
     >
-      <div className={cn(
-        'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-        cari.type === 'musteri' ? 'bg-primary/10' : 'bg-warning/10'
-      )}>
-        {cari.type === 'musteri'
-          ? <User size={16} className="text-primary" strokeWidth={1.6} />
-          : <Building2 size={16} className="text-warning" strokeWidth={1.6} />
-        }
+      <div
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+          cari.type === 'musteri' ? 'bg-primary/10' : 'bg-warning/10',
+        )}
+      >
+        {cari.type === 'musteri' ? (
+          <User size={16} className="text-primary" strokeWidth={1.6} />
+        ) : (
+          <Building2 size={16} className="text-warning" strokeWidth={1.6} />
+        )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate">{cari.name}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">Son: {cari.lastMovement}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-foreground">{cari.name}</p>
+        {subtitle ? <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p> : null}
       </div>
 
-      <div className="text-right shrink-0">
-        <p className={cn('text-sm font-bold tabular-nums', balanceColor(cari.balance, cari.type))}>
-          {cari.balance === 0 ? (
-            <span className="flex items-center gap-0.5 justify-end text-muted-foreground">
-              <Minus size={12} strokeWidth={2.5} /> Sıfır
-            </span>
-          ) : balanceLabel(cari.balance, cari.type)}
-        </p>
+      <div className="shrink-0 text-right">
+        {!hasBook ? (
+          <p className="text-xs font-medium text-muted-foreground">Cari yok</p>
+        ) : Math.abs(cari.balance) < 0.009 ? (
+          <BossMMoneyText amount={moneyLabel(0)} amountClassName="text-sm text-muted-foreground" />
+        ) : (
+          <div>
+            <BossMMoneyText
+              amount={moneyLabel(cari.balance)}
+              amountClassName={cn('text-sm', balanceColor(cari.balance))}
+            />
+            <p className={cn('mt-0.5 text-[10px] font-semibold', balanceColor(cari.balance))}>
+              {balanceWords(cari.balance)}
+            </p>
+          </div>
+        )}
       </div>
     </button>
   )
 }
 
 export default function BossMCarilerPage() {
-  const { data, loading } = useBossLoad(loadCarilerPage, {
-    list: CARILER,
-    source: 'mock',
-  })
-  const [segment, setSegment]   = useState<'musteri' | 'tedarikci'>('musteri')
+  const { data, loading } = useBossLoad(
+    loadCarilerPage,
+    {
+      list: CARILER,
+      source: 'mock',
+    },
+    { cacheKey: 'page:cariler:v2', ttlMs: 30_000 },
+  )
+  const [segment, setSegment] = useState<'musteri' | 'tedarikci'>('musteri')
+  const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Cari | null>(null)
 
-  const rows = data.list.filter((c) => c.type === segment)
-    .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance))
+  const rows = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase('tr-TR')
+    return data.list
+      .filter((c) => c.type === segment)
+      .filter((c) => {
+        if (!q) return true
+        const hay = `${c.name} ${c.subtitle ?? ''}`.toLocaleLowerCase('tr-TR')
+        return hay.includes(q)
+      })
+      .sort((a, b) => Math.abs(b.balance) - Math.abs(a.balance) || a.name.localeCompare(b.name, 'tr'))
+  }, [data.list, segment, query])
 
-  const totalBalance = rows.reduce((s, c) => s + c.balance, 0)
+  const booked = rows.filter((c) => c.hasCurrentAccount !== false)
+  const totalOpen =
+    segment === 'musteri'
+      ? booked.reduce((s, c) => s + Math.max(0, c.balance), 0)
+      : booked.reduce((s, c) => s + Math.abs(Math.min(0, c.balance)), 0)
+
+  if (selected) {
+    return <CariDetailPanel cari={selected} onClose={() => setSelected(null)} />
+  }
 
   return (
-    <main className="flex flex-col min-h-0 bg-transparent">
-      {selected && <CariDetailPanel cari={selected} onClose={() => setSelected(null)} />}
-
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader title="Cariler" showBack />
 
-      <div className="flex gap-1 mx-4 mb-3 p-1 bg-surface-2 rounded-xl border border-border">
+      <div className="mx-4 mb-3 flex gap-1 rounded-xl border border-border bg-surface-2 p-1">
         {(['musteri', 'tedarikci'] as const).map((s) => (
           <button
             key={s}
+            type="button"
             onClick={() => setSegment(s)}
             className={cn(
-              'flex-1 h-9 rounded-lg text-xs font-semibold transition-colors',
+              'h-9 !min-h-0 flex-1 rounded-lg text-xs font-semibold transition-colors',
               segment === s
-                ? 'bg-card text-foreground shadow-sm border border-border'
-                : 'text-muted-foreground'
+                ? 'border border-border bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground',
             )}
           >
             {s === 'musteri' ? 'Müşteri' : 'Tedarikçi'}
@@ -179,23 +233,47 @@ export default function BossMCarilerPage() {
         ))}
       </div>
 
-      <div className="mx-4 mb-3 px-4 py-3 bg-card border border-border rounded-2xl flex items-center justify-between">
+      <div className="px-4 pb-3">
+        <div className="flex h-11 items-center gap-3 rounded-xl border border-border bg-card/90 px-3">
+          <Search size={16} className="shrink-0 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={segment === 'musteri' ? 'Müşteri adı' : 'Tedarikçi adı'}
+            className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Aramayı temizle"
+              className="flex !h-8 !w-8 !min-h-0 !min-w-0 items-center justify-center text-muted-foreground"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="mx-4 mb-3 flex items-center justify-between rounded-2xl border border-border bg-card px-4 py-3">
         <span className="text-xs text-muted-foreground">
           {segment === 'musteri' ? 'Toplam açık alacak' : 'Toplam açık borç'}
         </span>
-        <span className={cn(
-          'text-sm font-bold tabular-nums',
-          totalBalance > 0 ? 'text-success' : totalBalance < 0 ? 'text-warning' : 'text-muted-foreground'
-        )}>
-          {totalBalance === 0 ? '0 ₺' : fmtTL(Math.abs(totalBalance))}
-        </span>
+        <BossMMoneyText
+          amount={moneyLabel(totalOpen)}
+          amountClassName={cn(
+            'text-sm',
+            totalOpen < 0.009 ? 'text-muted-foreground' : segment === 'musteri' ? 'text-success' : 'text-danger',
+          )}
+        />
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-6">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="space-y-2 animate-pulse">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-surface-2 rounded-2xl" />
+              <div key={i} className="h-16 rounded-2xl bg-surface-2" />
             ))}
           </div>
         ) : rows.length === 0 ? (
@@ -205,7 +283,7 @@ export default function BossMCarilerPage() {
             description={segment === 'musteri' ? 'Müşteri kaydı yok.' : 'Tedarikçi kaydı yok.'}
           />
         ) : (
-          <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
+          <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
             {rows.map((c) => (
               <CariRow key={c.id} cari={c} onTap={() => setSelected(c)} />
             ))}

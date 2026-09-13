@@ -11,7 +11,7 @@ export default function BossMUretimPage() {
   const { data, loading } = useBossLoad(loadUretimPage, { areas: [], source: 'mock' })
 
   return (
-    <main className="flex flex-col pb-4">
+    <main className="flex flex-col pb-8">
       <BossMPageHeader title="Üretim Yerleri" showBack />
 
       {loading ? (

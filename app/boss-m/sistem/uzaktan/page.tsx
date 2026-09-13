@@ -21,7 +21,7 @@ export default function BossMUzaktanPage() {
   })
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
+    <main className="flex flex-col gap-4 pb-8">
       <BossMPageHeader title="Uzaktan Kontrol" showBack />
 
       <div

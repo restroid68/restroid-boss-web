@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
 import { BossMRevenueTrend } from '@/components/boss/ana/BossMRevenueTrend'
 import { BossMFinanceSnapshot } from '@/components/boss/ana/BossMFinanceSnapshot'
@@ -8,7 +9,9 @@ import { BossMPlatforms } from '@/components/boss/ana/BossMPlatforms'
 import { BossMStaffCard } from '@/components/boss/ana/BossMStaffCard'
 import { BossMOpsAlerts } from '@/components/boss/ana/BossMOpsAlerts'
 import { BossMBranchCompare } from '@/components/boss/ana/BossMBranchCompare'
+import { BossMDayPicker } from '@/components/boss/BossMDayPicker'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
+import { useBossSelectedDay } from '@/hooks/use-boss-selected-day'
 import { ANA_KPIS } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { postToNative, readNativeSession } from '@/lib/boss-bridge'
@@ -40,38 +43,41 @@ const ANA_FALLBACK: AnaDashboardData = {
 }
 
 export default function BossMDashboard() {
-  const { data, loading } = useBossLoad(loadAnaDashboard, ANA_FALLBACK, {
-    cacheKey: 'page:ana:v2',
+  const { day } = useBossSelectedDay()
+  const load = useCallback(() => loadAnaDashboard(day), [day])
+  const { data, loading } = useBossLoad(load, ANA_FALLBACK, {
+    cacheKey: `page:ana:v4:${day}`,
     ttlMs: 45_000,
   })
-  const today = new Intl.DateTimeFormat('tr-TR', {
-    day: 'numeric',
-    month: 'long',
-    weekday: 'long',
-  }).format(new Date())
+
+  const session = readNativeSession()
+  const nativeShell = Boolean(session?.token)
+  const mockNote = data.source === 'mock' ? ' · örnek veri' : ''
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 bg-transparent pb-4 pt-5">
+      <main className="flex flex-col gap-4 bg-transparent pb-8 pt-5">
+        <header className="px-4 pb-1">
+          <BossMDayPicker />
+        </header>
         <BossMSkeletonKpiRow />
         <BossMSkeletonList rows={4} />
       </main>
     )
   }
 
-  const session = readNativeSession()
-  const nativeShell = Boolean(session?.token)
-
   return (
-    <main className="flex flex-col gap-3.5 bg-transparent pb-4">
+    <main className="flex flex-col gap-3.5 bg-transparent pb-8">
       <header className="px-4 pb-1 pt-3">
         {nativeShell ? (
-          <span className="text-xs capitalize text-muted-foreground">
-            {today} &mdash; Bugün
-            {data.source === 'mock' ? ' · örnek veri' : ''}
-          </span>
+          <div className="flex items-center gap-2">
+            <BossMDayPicker />
+            {mockNote ? (
+              <span className="text-xs text-muted-foreground">{mockNote.trim()}</span>
+            ) : null}
+          </div>
         ) : (
-          <div className="flex flex-col gap-0.5 pt-2">
+          <div className="flex flex-col gap-2 pt-2">
             <button
               type="button"
               onClick={() => postToNative({ type: 'switchRestaurant' })}
@@ -90,17 +96,19 @@ export default function BossMDashboard() {
                 <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
               )}
             </button>
-            <span className="pl-0.5 text-xs capitalize text-muted-foreground">
-              {today} &mdash; Bugün
-              {data.source === 'mock' ? ' · örnek veri' : ''}
-            </span>
+            <div className="flex items-center gap-2">
+              <BossMDayPicker />
+              {mockNote ? (
+                <span className="text-xs text-muted-foreground">{mockNote.trim()}</span>
+              ) : null}
+            </div>
           </div>
         )}
       </header>
 
       <BossMKpiRow metrics={data.kpis} />
       <BossMRevenueTrend points={data.revenueTrend} />
-      <BossMFinanceSnapshot rows={data.finance} />
+      <BossMFinanceSnapshot rows={data.finance} day={day} />
       <BossMChannelShares channels={data.channelShares} />
       <BossMPlatforms platforms={data.platforms} />
       <BossMBranchCompare branches={data.branches} />

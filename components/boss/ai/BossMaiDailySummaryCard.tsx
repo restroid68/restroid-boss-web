@@ -1,11 +1,13 @@
 'use client'
 
+import { useCallback } from 'react'
 import { AlertTriangle, Star } from 'lucide-react'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { formatMoneyTR } from '@/lib/boss-api'
 import { ANA_KPIS } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { BOSS_TTL } from '@/lib/boss-page-cache'
+import { istanbulYmd } from '@/lib/boss-wall-clock'
 import { cn } from '@/lib/utils'
 
 const EMPTY: AnaDashboardData = {
@@ -42,8 +44,10 @@ function kpiValue(data: AnaDashboardData, labelPart: string): string {
 }
 
 export function BossMaiDailySummaryCard() {
-  const { data, loading } = useBossLoad(loadAnaDashboard, EMPTY, {
-    cacheKey: 'page:ana:v2',
+  const todayKey = istanbulYmd()
+  const load = useCallback(() => loadAnaDashboard(todayKey), [todayKey])
+  const { data, loading } = useBossLoad(load, EMPTY, {
+    cacheKey: `page:ana:v4:${todayKey}`,
     ttlMs: BOSS_TTL.kpi,
   })
 

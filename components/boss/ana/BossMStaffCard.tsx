@@ -48,7 +48,7 @@ export function BossMStaffCard({ staff }: { staff: AnaStaffSummary }) {
         ) : (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Users size={14} />
-            Bugün henüz satış kaydı yok
+            Bu günde satış kaydı yok
           </div>
         )}
 

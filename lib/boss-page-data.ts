@@ -41,6 +41,14 @@ import {
   withBossCache,
 } from '@/lib/boss-page-cache'
 import { formatMoneyTR, parseMoneyTR } from '@/lib/boss-money'
+import { formatBossDateTime } from '@/lib/boss-wall-clock'
+import {
+  bossOrderStatusKey,
+  bossOrderStatusLabel,
+  bossPlatformLabel,
+  bossPlatformLogoSrc,
+  normalizeBossPlatformCode,
+} from '@/lib/boss-online-platform'
 
 function num(v: unknown): number {
   return parseMoneyTR(v)
@@ -243,27 +251,39 @@ export async function patchProductStockStatus(
   code: string,
   stockStatus: boolean,
 ): Promise<boolean> {
-  return patchProductCatalogRow({ uuid, code, stockStatus })
+  return (await saveProductCatalogRow({ uuid, code, stockStatus })).ok
+}
+
+/** Katalog satırı kaydı — tam satır gönderilmeli (kısmi patch ad/kategori siler). */
+export async function saveProductCatalogRow(
+  row: Record<string, unknown>,
+  opts?: { replaceProductCode?: string },
+): Promise<{ ok: boolean; error?: string }> {
+  const uuid = str(row.uuid)
+  const code = str(row.code)
+  if (!uuid && !code) return { ok: false, error: 'Ürün kimliği yok.' }
+  const patch: { row: Record<string, unknown>; replaceProductCode?: string } = { row }
+  const replace = str(opts?.replaceProductCode)
+  if (replace) patch.replaceProductCode = replace
+  const res = await bossFetch('/api/products', {
+    method: 'POST',
+    body: JSON.stringify({ bulkProductPatches: [patch] }),
+    timeoutMs: 60_000,
+  })
+  if (res.ok) {
+    invalidateBossCache('page:catalog')
+    invalidateBossCache('fn:loadCatalogPage')
+    if (uuid) invalidateBossCache(`page:product-row:${uuid}`)
+    return { ok: true }
+  }
+  return { ok: false, error: res.error || 'Kayıt başarısız' }
 }
 
 /** Menü yönetimi — ürün satırı kısmi güncelleme (fiyat / KDV / üretim yeri vb.). */
 export async function patchProductCatalogRow(
   row: Record<string, unknown>,
 ): Promise<boolean> {
-  const uuid = str(row.uuid)
-  const code = str(row.code)
-  if (!uuid && !code) return false
-  const res = await bossFetch('/api/products', {
-    method: 'POST',
-    body: JSON.stringify({
-      bulkProductPatches: [{ row }],
-    }),
-  })
-  if (res.ok) {
-    invalidateBossCache('page:catalog')
-    invalidateBossCache('fn:loadCatalogPage')
-  }
-  return res.ok
+  return (await saveProductCatalogRow(row)).ok
 }
 
 export type BossTaxRateOption = { id: string; label: string; rate: number }
@@ -356,7 +376,8 @@ export async function loadPersonelPage(): Promise<PersonelPageData> {
 // ── Servis kanalları ─────────────────────────────────────────────────────────
 
 const CHANNEL_META: Record<string, { label: string; description: string }> = {
-  dinein: { label: 'Dine-in', description: 'Restoran içi masa servisi' },
+  dinein: { label: 'Masa', description: 'Restoran içi masa servisi' },
+  dine_in: { label: 'Masa', description: 'Restoran içi masa servisi' },
   delivery: { label: 'Paket', description: 'Kapıda teslimat siparişleri' },
   paket: { label: 'Paket', description: 'Kapıda teslimat siparişleri' },
   takeaway: { label: 'Gel-al', description: 'Müşterinin kendi teslim alması' },
@@ -375,7 +396,7 @@ export type KanallarPageData = {
 
 export async function loadKanallarPage(): Promise<KanallarPageData> {
   return withBossCache(
-    'page:kanallar',
+    'page:kanallar:v2',
     BOSS_TTL.definitions,
     async () => {
       const session = readNativeSession()
@@ -397,9 +418,11 @@ export async function loadKanallarPage(): Promise<KanallarPageData> {
           label: str(row.nameTr ?? row.name ?? row.label, code),
           description: str(row.description, 'Servis kanalı'),
         }
+        const label =
+          /^dine[\s_-]*in$/i.test(code) || /^dine[\s_-]*in$/i.test(meta.label) ? 'Masa' : meta.label
         return {
           id: code || str(row.id),
-          label: meta.label,
+          label,
           description: meta.description,
           enabled:
             row.isActive === true ||
@@ -422,7 +445,7 @@ export async function patchServiceChannelEnabled(code: string, enabled: boolean)
     body: JSON.stringify({ isActive: enabled }),
   })
   if (res.ok) {
-    invalidateBossCache('page:kanallar')
+    invalidateBossCache('page:kanallar:v2')
     invalidateBossCache(CACHE_KEY_SISTEM_HUB)
     invalidateBossCache('fn:loadKanallarPage')
     invalidateBossCache('fn:loadSistemHub')
@@ -731,10 +754,14 @@ export type BossOrderRow = {
   id: string
   title: string
   platform: string
+  platformCode: string
+  logoSrc: string | null
   status: string
-  amount: string
+  statusKey: string
+  amount: number
   time: string
   customer: string
+  serviceLabel: string
 }
 
 export type OrdersPageData = {
@@ -742,59 +769,67 @@ export type OrdersPageData = {
   source: 'api' | 'mock'
 }
 
-/** API status / statusLabel → Türkçe; ham enum UI’ya düşmez. */
-const ORDER_STATUS_TR: Record<string, string> = {
-  pending: 'Beklemede',
-  new: 'Yeni',
-  accepted: 'Onaylandı',
-  confirmed: 'Onaylandı',
-  preparing: 'Hazırlanıyor',
-  preparation: 'Hazırlanıyor',
-  in_preparation: 'Hazırlanıyor',
-  ready: 'Hazır',
-  out_for_delivery: 'Yolda',
-  delivering: 'Yolda',
-  on_the_way: 'Yolda',
-  delivered: 'Teslim',
-  completed: 'Tamamlandı',
-  done: 'Tamamlandı',
-  cancelled: 'İptal',
-  canceled: 'İptal',
-  rejected: 'Reddedildi',
-  failed: 'Başarısız',
-  refunded: 'İade',
-  scheduled: 'Zamanlanmış',
-  picked_up: 'Teslim alındı',
-  pickup: 'Gel-al',
+function orderServiceLabel(row: Record<string, unknown>, platformCode: string): string {
+  if (platformCode === 'qr_menu') return 'QR Menü'
+  if (platformCode === 'whatsapp') return 'Teslimat'
+  const payload = asMap(row.payload) ?? {}
+  const dt = str(payload.deliveryType ?? payload.delivery_type).toLowerCase()
+  if (dt === 'takeaway' || dt === 'pickup') return 'Gel al'
+  if (dt === 'dinein' || dt === 'dine_in') return 'Yerinde'
+  if (dt === 'delivery') return 'Teslimat'
+  const nested = [payload, asMap(payload.order), asMap(payload.parsedOrder)]
+  for (const src of nested) {
+    if (!src) continue
+    const sid = num(src.service_type_id ?? src.serviceTypeId)
+    if (sid === 3) return 'Gel al'
+    if (sid === 1) return 'Yerinde'
+    if (sid === 6) return 'QR Menü'
+    if (sid === 2) return 'Teslimat'
+  }
+  return str(row.deliveryAddress) ? 'Teslimat' : 'Gel al'
 }
 
-function labelOrderStatus(raw: unknown): string {
-  const s = str(raw).trim()
-  if (!s || s === '—') return '—'
-  // Zaten Türkçe görünüyorsa (boşluk / Türkçe karakter) olduğu gibi bırak
-  if (/[çğıöşüÇĞİÖŞÜ ]/.test(s) || !/^[a-zA-Z0-9_-]+$/.test(s)) return s
-  const key = s
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/[\s-]+/g, '_')
-    .toLowerCase()
-  return ORDER_STATUS_TR[key] ?? 'Durum'
+function qrTableTitle(row: Record<string, unknown>): string {
+  const payload = asMap(row.payload) ?? {}
+  const sources = [payload, asMap(payload.order), asMap(payload.table)]
+  for (const src of sources) {
+    if (!src) continue
+    const tableName = str(src.tableName ?? src.table_name)
+    const tableNo = num(src.tableNumber ?? src.table_number)
+    const salon = str(src.salonName ?? src.salon_name)
+    const table = tableName || (tableNo > 0 ? `Masa ${tableNo}` : '')
+    if (!table) continue
+    return salon ? `${salon} · ${table}` : table
+  }
+  return ''
+}
+
+function orderCustomerName(row: Record<string, unknown>): string {
+  const name = str(row.customerName ?? row.guestName)
+  if (name && !isPhoneLikeName(name, row.customerPhone ?? row.phone)) return name
+  const phone = formatTrMobile(row.customerPhone ?? row.phone)
+  return phone || '—'
 }
 
 function mapOrderRows(raw: unknown[]): BossOrderRow[] {
   return raw.map((r, i) => {
     const row = asMap(r) ?? {}
-    const amount = num(row.totalAmount ?? row.grandTotal ?? row.amount ?? row.total)
+    const platformCode = normalizeBossPlatformCode(row.platform ?? row.platformName ?? row.source)
+    const orderNo = str(row.orderNumber ?? row.platformOrderId)
+    const qrTitle = platformCode === 'qr_menu' ? qrTableTitle(row) : ''
+    const title = qrTitle || (orderNo ? `#${orderNo}` : 'Sipariş')
     return {
-      id: str(row.id ?? row.orderId ?? i),
-      title: str(
-        row.externalOrderId ?? row.orderNo ?? row.code ?? `#${i + 1}`,
-        `Sipariş ${i + 1}`,
-      ),
-      platform: str(row.platformName ?? row.platform ?? row.source ?? 'Online'),
-      status: labelOrderStatus(row.statusLabel ?? row.status ?? '—'),
-      amount: `₺${formatMoneyTR(amount)}`,
-      time: fmtDateTime(row.createdAt ?? row.orderedAt),
-      customer: str(row.customerName ?? row.guestName ?? row.phone, '—'),
+      id: str(row.id ?? row.orderId ?? `${platformCode}-${i}`),
+      title,
+      platform: bossPlatformLabel(platformCode),
+      platformCode,
+      logoSrc: bossPlatformLogoSrc(platformCode),
+      status: bossOrderStatusLabel(row.status ?? row.statusLabel),
+      statusKey: bossOrderStatusKey(row.status ?? row.statusLabel),
+      amount: num(row.totalAmount ?? row.grandTotal ?? row.amount ?? row.total),
+      time: formatBossDateTime(row.createdAt ?? row.orderedAt),
+      customer: orderCustomerName(row),
+      serviceLabel: orderServiceLabel(row, platformCode),
     }
   })
 }
@@ -804,9 +839,8 @@ export async function loadOnlineOrdersPage(): Promise<OrdersPageData> {
   if (!session?.token) return { orders: [], source: 'mock' }
 
   const res = await bossFetch<{ rows?: unknown[]; items?: unknown[] }>('/api/sales/online-orders', {
-    query: { page: '1', pageSize: '40' },
+    query: { page: '1', pageSize: '40', sortDir: 'desc' },
   })
-  // API hatası mock değildir — boş liste + 'api' (hata/boş durum)
   if (!res.ok) return { orders: [], source: 'api' }
   const raw = asList(res.data?.rows ?? res.data?.items)
   return { orders: mapOrderRows(raw), source: 'api' }
@@ -818,9 +852,8 @@ export async function loadQrOrdersPage(): Promise<OrdersPageData> {
 
   const res = await bossFetch<{ rows?: unknown[]; items?: unknown[] }>(
     '/api/sales/qr-menu-orders',
-    { query: { page: '1', pageSize: '40' } },
+    { query: { page: '1', pageSize: '40', sortDir: 'desc' } },
   )
-  // API hatası mock değildir — boş liste + 'api' (hata/boş durum)
   if (!res.ok) return { orders: [], source: 'api' }
   const raw = asList(res.data?.rows ?? res.data?.items)
   return { orders: mapOrderRows(raw), source: 'api' }
@@ -1090,16 +1123,86 @@ export type CarilerPageData = {
   source: 'api' | 'mock'
 }
 
+function phoneDigits10(raw: unknown): string {
+  const d = str(raw).replace(/\D/g, '')
+  return d.length >= 10 ? d.slice(-10) : d
+}
+
+function formatTrMobile(raw: unknown): string {
+  const d = phoneDigits10(raw)
+  if (d.length !== 10) return ''
+  if (d === d[0]!.repeat(10)) return ''
+  return `0${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 8)} ${d.slice(8)}`
+}
+
+function isPhoneLikeName(name: string, phoneRaw: unknown): boolean {
+  const trimmed = name.trim()
+  if (!trimmed) return true
+  const want = phoneDigits10(phoneRaw)
+  if (want.length < 10) return false
+  const got = phoneDigits10(trimmed)
+  return got.length >= 10 && got === want
+}
+
+function groupNameOf(row: Record<string, unknown>): string {
+  const g = asMap(row.customerGroup ?? row.supplierGroup ?? row.group)
+  return str(g?.name ?? row.groupName)
+}
+
+function cariPartyName(row: Record<string, unknown>, kind: 'musteri' | 'tedarikci'): string {
+  const phoneRaw = str(row.phone)
+  const phone = formatTrMobile(phoneRaw)
+  const candidates = [
+    row.crmDisplayName,
+    row.officialName,
+    row.linkedCustomerName,
+    row.fullName,
+    row.name,
+    row.title,
+  ]
+  for (const c of candidates) {
+    const s = str(c)
+    if (s && !isPhoneLikeName(s, phoneRaw)) return s
+  }
+  return phone || (kind === 'musteri' ? 'Adsız müşteri' : 'Adsız tedarikçi')
+}
+
+function cariBalanceOf(row: Record<string, unknown>): number {
+  const ledger = row.accountingBalance
+  if (ledger != null && str(ledger) !== '') return num(ledger)
+  return num(row.openingBalance)
+}
+
+function mapCariRow(raw: unknown, i: number, type: Cari['type']): Cari {
+  const row = asMap(raw) ?? {}
+  const name = cariPartyName(row, type)
+  const phone = formatTrMobile(row.phone)
+  const group = groupNameOf(row)
+  const subtitle = phone && phone !== name ? phone : group && group !== name ? group : ''
+  const hasAccount = type === 'tedarikci' || row.hasCurrentAccount === true
+  return {
+    id: str(row.id ?? `${type}-${i}`),
+    name,
+    type,
+    balance: hasAccount ? cariBalanceOf(row) : 0,
+    lastMovement: subtitle || '—',
+    subtitle,
+    hasCurrentAccount: hasAccount,
+    ledger: [],
+  }
+}
+
 export async function loadCarilerPage(): Promise<CarilerPageData> {
   const session = readNativeSession()
   if (!session?.token) return { list: [], source: 'mock' }
 
+  const listQuery = { page: '1', take: '80', sortBy: 'fullName', sortDir: 'asc' }
   const [cust, supp] = await Promise.all([
     bossFetch<{ items?: unknown[]; rows?: unknown[]; customers?: unknown[] }>('/api/customers', {
-      query: { page: '1', pageSize: '50' },
+      query: listQuery,
     }),
     bossFetch<{ items?: unknown[]; rows?: unknown[]; suppliers?: unknown[] }>('/api/suppliers', {
-      query: { page: '1', pageSize: '50' },
+      query: listQuery,
     }),
   ])
 
@@ -1109,30 +1212,8 @@ export async function loadCarilerPage(): Promise<CarilerPageData> {
   if (!custRaw.length && !suppRaw.length) return { list: [], source: 'api' }
 
   const list: Cari[] = [
-    ...custRaw.map((r, i) => {
-      const row = asMap(r) ?? {}
-      const balance = num(row.balance ?? row.currentBalance ?? row.receivable)
-      return {
-        id: str(row.id ?? `c${i}`),
-        name: str(row.name ?? row.title, `Müşteri ${i + 1}`),
-        type: 'musteri' as const,
-        balance,
-        lastMovement: fmtDateShort(row.lastMovementAt ?? row.updatedAt),
-        ledger: [],
-      }
-    }),
-    ...suppRaw.map((r, i) => {
-      const row = asMap(r) ?? {}
-      const balance = num(row.balance ?? row.currentBalance ?? row.payable)
-      return {
-        id: str(row.id ?? `s${i}`),
-        name: str(row.name ?? row.title, `Tedarikçi ${i + 1}`),
-        type: 'tedarikci' as const,
-        balance: balance > 0 ? -balance : balance,
-        lastMovement: fmtDateShort(row.lastMovementAt ?? row.updatedAt),
-        ledger: [],
-      }
-    }),
+    ...custRaw.map((r, i) => mapCariRow(r, i, 'musteri')),
+    ...suppRaw.map((r, i) => mapCariRow(r, i, 'tedarikci')),
   ]
 
   return { list, source: 'api' }
@@ -1356,6 +1437,7 @@ export async function createFinanceAccount(input: {
   invalidateBossCache('api:accounting')
   invalidateBossCache('fn:loadAccountsPage')
   invalidateBossCache('fn:loadKasaDashboard')
+  invalidateBossCache('page:kasa')
   return { ok: true, account: mapFinanceAccount(res.data, 0) }
 }
 
@@ -1405,6 +1487,7 @@ export async function postCashMovement(input: {
     invalidateBossCache('fn:loadAccountsPage')
     invalidateBossCache('page:finans')
     invalidateBossCache('page:kasa')
+    invalidateBossCache('page:kasa-ledger:')
   }
   return { ok: res.ok, error: res.error }
 }

@@ -111,7 +111,7 @@ export default function BossMStokSayimlarPage() {
   const kapaliCount = data.sayimlar.filter((s) => s.status === 'Kapalı').length
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
       <BossMPageHeader
         title="Sayımlar"
         showBack
@@ -156,7 +156,7 @@ export default function BossMStokSayimlarPage() {
         })}
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[72px] px-4">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
             {[...Array(3)].map((_, i) => (

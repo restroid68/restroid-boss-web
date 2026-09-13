@@ -183,6 +183,7 @@ export function invalidateBossCache(logicalKeyPrefix?: string): void {
       if (k.startsWith(`${scope}::`)) memory.delete(k)
     }
     removeL2ByPrefix(`${scope}::`)
+    emitBossCacheInvalidated('')
     return
   }
   const needle = `${scope}::${logicalKeyPrefix}`
@@ -225,6 +226,12 @@ export function invalidateBossCache(logicalKeyPrefix?: string): void {
       /* ignore */
     }
   }
+  emitBossCacheInvalidated(logicalKeyPrefix)
+}
+
+function emitBossCacheInvalidated(logicalKeyPrefix: string): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('boss-cache-invalidated', { detail: logicalKeyPrefix }))
 }
 
 /** Restoran / şube değişince veya logout. */

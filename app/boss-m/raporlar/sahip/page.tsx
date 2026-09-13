@@ -126,10 +126,10 @@ export default function BossMSahipRaporPage() {
     .map((r) => parseInt(r.karProxy.replace(/\D/g, ''), 10))
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader title="Sahip Raporu" showBack />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 mt-1 animate-pulse">
             <div className="h-10 bg-surface-2 rounded-xl" />

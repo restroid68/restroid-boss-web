@@ -56,6 +56,11 @@ function readTypeFromUrl(): HareketType {
   return HAREKET_TYPES.some((x) => x.key === t) ? (t as HareketType) : 'giris'
 }
 
+function readAccountFromUrl(): string {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search).get('accountId')?.trim() || ''
+}
+
 export default function BossMHareketPage() {
   const router = useRouter()
   const { keyboardOpen, keyboardInset } = useBossKeyboard()
@@ -102,9 +107,18 @@ export default function BossMHareketPage() {
 
   useEffect(() => {
     if (!accounts.length) return
-    if (!accounts.some((a) => a.id === accountId)) setAccountId(accounts[0]!.id)
-    const alt = accounts.find((a) => a.id !== (accountId || accounts[0]!.id))
-    if (alt && (!targetId || targetId === accountId)) setTargetId(alt.id)
+    const fromUrl = readAccountFromUrl()
+    const currentOk = Boolean(accountId && accounts.some((a) => a.id === accountId))
+    if (!currentOk) {
+      const next =
+        fromUrl && accounts.some((a) => a.id === fromUrl) ? fromUrl : accounts[0]!.id
+      setAccountId(next)
+      return
+    }
+    const alt = accounts.find((a) => a.id !== accountId)
+    if (alt && (!targetId || targetId === accountId || !accounts.some((a) => a.id === targetId))) {
+      setTargetId(alt.id)
+    }
   }, [accounts, accountId, targetId])
 
   useEffect(() => {
@@ -160,7 +174,7 @@ export default function BossMHareketPage() {
 
   return (
     <main
-      className="flex min-h-0 flex-col bg-transparent"
+      className="flex min-h-0 flex-1 flex-col bg-transparent"
       style={{ paddingBottom: keyboardOpen ? Math.max(keyboardInset - 24, 8) : 0 }}
     >
       <BossMPageHeader title="Nakit Hareket" showBack />
@@ -431,7 +445,7 @@ export default function BossMHareketPage() {
       <div
         className={cn(
           'border-t border-border bg-background/85 px-4 pt-3 backdrop-blur-sm',
-          keyboardOpen ? 'pb-3' : 'pb-6',
+          keyboardOpen ? 'pb-3' : 'pb-8',
         )}
       >
         <button

@@ -35,7 +35,7 @@ export function BossMMovementList({ movements }: BossMMovementListProps) {
         {movements.map((m) => {
           const Icon = iconMap[m.icon] ?? Receipt
           return (
-            <div key={m.id} className="flex items-center gap-3 px-4 py-3.5">
+            <div key={m.id} className="flex items-start gap-3 px-4 py-3.5">
               <div
                 className={cn(
                   'flex items-center justify-center w-9 h-9 rounded-xl shrink-0',
@@ -48,7 +48,7 @@ export function BossMMovementList({ movements }: BossMMovementListProps) {
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground leading-tight truncate">
+                <p className="text-sm font-medium leading-snug break-words text-foreground">
                   {m.title}
                 </p>
                 <p className="text-xs text-muted-foreground">{m.sub}</p>

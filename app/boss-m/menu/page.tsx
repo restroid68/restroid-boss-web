@@ -52,7 +52,7 @@ export default function BossMMenuPage() {
   }
 
   return (
-    <main className="flex min-h-0 flex-col bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader
         title="Menü & Fiyat"
         showBack
@@ -221,7 +221,7 @@ export default function BossMMenuPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-6">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="space-y-2 animate-pulse">
             {[...Array(6)].map((_, i) => (

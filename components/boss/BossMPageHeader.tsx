@@ -45,13 +45,15 @@ export function BossMPageHeader({
     }
   }, [title, showBack, syncNativeChrome])
 
-  // Native sayfa: başlık app bar’da — yalnızca trailing veya boş
+  // Native: başlık Flutter’da. Header null olursa kart native bar’a yapışır.
   if (native && syncNativeChrome) {
-    if (!trailing) return null
+    if (!trailing) {
+      return <div className={cn('h-4 shrink-0', className)} aria-hidden />
+    }
     return (
       <div
         className={cn(
-          'flex items-center justify-end gap-2 px-4 pt-2 pb-1 bg-transparent',
+          'flex items-center justify-end gap-2 bg-transparent px-4 pt-3 pb-2',
           className,
         )}
       >

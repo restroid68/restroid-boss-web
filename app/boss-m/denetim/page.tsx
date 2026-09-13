@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
+import { BossMDayPicker } from '@/components/boss/BossMDayPicker'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
 import type { AlertFilter, AuditAlert } from '@/lib/boss-mock'
@@ -14,6 +15,7 @@ import {
 import { bossFetch } from '@/lib/boss-api'
 import { invalidateBossCache } from '@/lib/boss-page-cache'
 import { useBossLoad } from '@/hooks/use-boss-load'
+import { useBossSelectedDay } from '@/hooks/use-boss-selected-day'
 import { cn } from '@/lib/utils'
 import { AlertTriangle, AlertCircle, Radio, SearchX, CheckCheck } from 'lucide-react'
 
@@ -22,15 +24,21 @@ function severityCount(alerts: AuditAlert[], severity: AuditAlert['severity']) {
 }
 
 export default function BossMDenetimPage() {
+  const { day, isToday, chipLabel } = useBossSelectedDay()
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('Tümü')
+  const load = useCallback(() => loadDenetimDashboard(day), [day])
   const { data, setData, loading, reload, reloadSoft } = useBossLoad(
-    loadDenetimDashboard,
+    load,
     { alerts: [], nextCursor: null, source: 'mock' },
-    { cacheKey: 'page:denetim', ttlMs: 20_000 },
+    { cacheKey: `page:denetim:${day}`, ttlMs: 20_000 },
   )
   const alerts = data.alerts
   const source = data.source
   const [loadingMore, setLoadingMore] = useState(false)
+
+  useEffect(() => {
+    setActiveFilter('Tümü')
+  }, [day])
 
   // Sayfa öne gelince bayat veriyi arka planda yenile (poll yok — yalnızca görünürlük olayı)
   useEffect(() => {
@@ -49,7 +57,7 @@ export default function BossMDenetimPage() {
       const res = await bossFetch<{
         items?: BossNotificationApiRow[]
         nextCursor?: string | null
-      }>('/api/boss/notifications', { query: { limit: '50', cursor } })
+      }>('/api/boss/notifications', { query: { limit: '50', cursor, day } })
       if (!res.ok) return
       const items = Array.isArray(res.data?.items) ? res.data!.items! : []
       const mapped = items.map((raw, i) => mapNotificationToAuditAlert(raw, alerts.length + i))
@@ -99,8 +107,11 @@ export default function BossMDenetimPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col gap-4 pb-4">
+      <main className="flex flex-col gap-4 pb-8">
         <BossMPageHeader title="Denetim" />
+        <div className="px-4">
+          <BossMDayPicker className="min-w-0" />
+        </div>
         <BossMSkeletonList rows={5} />
       </main>
     )
@@ -112,34 +123,48 @@ export default function BossMDenetimPage() {
   const unreadCount = alerts.filter((a) => a.unread).length
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
-      <BossMPageHeader
-        title="Denetim"
-        trailing={
-          <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={() => void markAllRead()}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-border bg-card text-[10px] font-semibold text-muted-foreground active:bg-surface-2"
-              >
-                <CheckCheck size={12} />
-                Okundu
-              </button>
-            )}
+    <main className="flex flex-col gap-4 pb-8">
+      <BossMPageHeader title="Denetim" />
+
+      <div className="flex min-w-0 items-center justify-between gap-2 px-4">
+        <BossMDayPicker className="min-w-0" />
+        <div className="flex shrink-0 items-center gap-2">
+          {unreadCount > 0 && (
             <button
               type="button"
-              onClick={() => void reload()}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-danger/10 border border-danger/25 rounded-full"
+              onClick={() => void markAllRead()}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-border bg-card text-[10px] font-semibold text-muted-foreground active:bg-surface-2"
             >
-              <Radio size={10} className={cn('text-danger', source === 'api' && 'animate-pulse')} />
-              <span className="text-[10px] font-semibold text-danger">
-                {source === 'api' ? 'Canlı' : 'Bağlantı yok'}
-              </span>
+              <CheckCheck size={12} />
+              Okundu
             </button>
-          </div>
-        }
-      />
+          )}
+          <button
+            type="button"
+            onClick={() => void reload()}
+            aria-label={source === 'api' ? 'Canlı — bağlı' : 'Bağlantı yok'}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full border px-2.5 py-1.5',
+              source === 'api'
+                ? 'border-success/30 bg-success/15'
+                : 'border-danger/30 bg-danger/10',
+            )}
+          >
+            <Radio
+              size={10}
+              className={cn(source === 'api' ? 'animate-pulse text-success' : 'text-danger')}
+            />
+            <span
+              className={cn(
+                'text-[10px] font-semibold',
+                source === 'api' ? 'text-success' : 'text-danger',
+              )}
+            >
+              {source === 'api' ? 'Canlı' : 'Bağlantı yok'}
+            </span>
+          </button>
+        </div>
+      </div>
 
       <div className="flex gap-2 px-4">
         <div className="flex items-center gap-1.5 px-3 py-2 bg-danger/10 border border-danger/25 rounded-xl">
@@ -198,10 +223,18 @@ export default function BossMDenetimPage() {
       {filtered.length === 0 ? (
         <BossMEmptyState
           icon={SearchX}
-          title={alerts.length === 0 ? 'Henüz kritik hareket yok' : 'Uyarı bulunamadı'}
+          title={
+            alerts.length === 0
+              ? isToday
+                ? 'Henüz kritik hareket yok'
+                : `${chipLabel} için kayıt yok`
+              : 'Uyarı bulunamadı'
+          }
           description={
             alerts.length === 0
-              ? 'İptal, zayi, gider, kasa ve cari işlemleri burada görünür.'
+              ? isToday
+                ? 'İptal, zayi, gider, kasa ve cari işlemleri burada görünür.'
+                : 'Bu günde iptal, zayi, gider veya kasa hareketi yok.'
               : 'Bu filtreye göre kayıt yok.'
           }
         />

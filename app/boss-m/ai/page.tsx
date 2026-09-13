@@ -300,11 +300,19 @@ export default function BossMaiPage() {
   const toggleTts = useCallback(async () => {
     if (ttsModeRef.current !== 'off') {
       setTtsMode('off')
-      const { postToNative } = await import('@/lib/boss-bridge')
-      postToNative({ type: 'speakStop' })
+      const { stopBossSpeech } = await import('@/lib/boss-speak')
+      stopBossSpeech()
       return
     }
     setVoiceSheetOpen(true)
+  }, [])
+
+  const speakLastAssistant = useCallback((voice: 'device' | 'cloud') => {
+    const last = [...messagesRef.current].reverse().find((m) => m.role === 'assistant')
+    if (!last?.text?.trim()) return
+    void import('@/lib/boss-speak').then(({ speakBossAnswer }) => {
+      speakBossAnswer(last.text, voice)
+    })
   }, [])
 
   const chooseVoice = useCallback(
@@ -331,8 +339,15 @@ export default function BossMaiPage() {
         /* ignore */
       }
       setVoiceSheetOpen(false)
+      if (mode === 'free') {
+        const { unlockBossDeviceSpeech } = await import('@/lib/boss-speak')
+        unlockBossDeviceSpeech()
+        speakLastAssistant('device')
+      } else {
+        speakLastAssistant('cloud')
+      }
     },
-    [router],
+    [router, speakLastAssistant],
   )
 
   useEffect(() => {
@@ -468,12 +483,11 @@ export default function BossMaiPage() {
             setSuggestions(api.suggestions.slice(0, 3))
           }
           if (ttsModeRef.current !== 'off') {
-            const { postToNative } = await import('@/lib/boss-bridge')
-            postToNative({
-              type: 'speak',
-              text: api.answer,
-              voice: ttsModeRef.current === 'free' ? 'device' : 'cloud',
-            })
+            const { speakBossAnswer } = await import('@/lib/boss-speak')
+            speakBossAnswer(
+              api.answer,
+              ttsModeRef.current === 'free' ? 'device' : 'cloud',
+            )
           }
           return
         }
@@ -503,6 +517,12 @@ export default function BossMaiPage() {
   )
 
   useEffect(() => {
+    return () => {
+      void import('@/lib/boss-speak').then(({ stopBossSpeech }) => stopBossSpeech())
+    }
+  }, [])
+
+  useEffect(() => {
     let offTranscript: (() => void) | undefined
     let offSession: (() => void) | undefined
     void import('@/lib/boss-bridge').then(({ onNativeTranscript, onNativeSession }) => {
@@ -519,7 +539,10 @@ export default function BossMaiPage() {
 
   return (
     <div
-      className="flex h-full flex-col overflow-hidden bg-transparent"
+      className={cn(
+        'flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent',
+        !keyboardOpen && 'pb-8',
+      )}
       style={
         keyboardOpen && keyboardInset > 0
           ? { paddingBottom: Math.max(0, keyboardInset - 8) }

@@ -5,6 +5,7 @@ import {
   CACHE_KEY_SALES_TODAY,
   withBossCache,
 } from '@/lib/boss-page-cache'
+import { addDaysYmd, istanbulYmd, isBossYmd } from '@/lib/boss-wall-clock'
 
 export type BossApiResult<T = unknown> = {
   ok: boolean
@@ -122,22 +123,44 @@ export async function bossFetch<T = unknown>(
 }
 
 export function todayYmd(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return istanbulYmd()
+}
+
+export async function fetchSalesAnalysisForDay(
+  day: string,
+): Promise<BossApiResult<Record<string, unknown>>> {
+  const ymd = isBossYmd(day) ? day : todayYmd()
+  return withBossCache(
+    ymd === todayYmd() ? CACHE_KEY_SALES_TODAY : `api:sales-analysis:full:${ymd}`,
+    BOSS_TTL.kpi,
+    () =>
+      bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
+        query: { fromDay: ymd, toDay: ymd, part: 'full' },
+      }),
+    { isCacheable: (r) => Boolean(r.ok && r.data) },
+  )
 }
 
 /** Ana / Finans / Z fallback — paylaşılan L1 cache. */
 export async function fetchSalesAnalysisTodayFull(): Promise<
   BossApiResult<Record<string, unknown>>
 > {
-  const day = todayYmd()
+  return fetchSalesAnalysisForDay(todayYmd())
+}
+
+export async function fetchSalesAnalysisEndingAt(
+  toDay: string,
+  days = 7,
+): Promise<BossApiResult<Record<string, unknown>>> {
+  const to = isBossYmd(toDay) ? toDay : todayYmd()
+  const n = Math.max(1, Math.min(31, Math.floor(days)))
+  const from = addDaysYmd(to, -(n - 1))
   return withBossCache(
-    CACHE_KEY_SALES_TODAY,
+    `api:sales-analysis:full:${from}:${to}`,
     BOSS_TTL.kpi,
     () =>
       bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
-        query: { fromDay: day, toDay: day, part: 'full' },
+        query: { fromDay: from, toDay: to, part: 'full' },
       }),
     { isCacheable: (r) => Boolean(r.ok && r.data) },
   )

@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Banknote,
+  Flame,
   Minus,
   Receipt,
   ShoppingBag,
@@ -52,6 +53,14 @@ const FALLBACK_TONES: KpiTone[] = [
 function toneFor(label: string, index: number): KpiTone {
   const l = label.toLowerCase()
   if (l.includes('ciro')) return FALLBACK_TONES[0]!
+  if (l.includes('zayi') || l.includes('iptal')) {
+    return {
+      Icon: Flame,
+      bar: 'bg-rose-400',
+      orb: 'bg-rose-400/30',
+      iconBox: 'border-rose-400/35 bg-rose-400/15 text-rose-200',
+    }
+  }
   if (l.includes('canlı')) return FALLBACK_TONES[3]!
   if (l.includes('sepet')) return FALLBACK_TONES[2]!
   if (l.includes('sipariş') || l.includes('fiş')) return FALLBACK_TONES[1]!

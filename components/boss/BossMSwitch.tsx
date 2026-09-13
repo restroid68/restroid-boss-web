@@ -29,7 +29,7 @@ export function BossMSwitch({
         checked
           ? danger
             ? 'border-danger/40 bg-danger'
-            : 'border-primary/40 bg-primary'
+            : 'border-success/50 bg-success'
           : 'border-rose-500/35 bg-rose-500/80',
         className,
       )}

@@ -126,7 +126,7 @@ function KadroRow({ person, onTap }: { person: PersonelRow; onTap: () => void })
 // ── Detail panel ──────────────────────────────────────────────────────────────
 function DetailPanel({ person, onClose }: { person: PersonelRow; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-background z-40 flex flex-col">
+    <div className="boss-over-native-nav flex flex-col bg-background">
       <BossMPageHeader
         title={person.name}
         showBack={false}
@@ -140,7 +140,7 @@ function DetailPanel({ person, onClose }: { person: PersonelRow; onClose: () => 
         }
       />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
 
         {/* Identity */}
         <div className="flex items-center gap-4 py-4">
@@ -234,7 +234,7 @@ export default function BossMPersonelPage() {
   const performansDisplay = performansRows.length ? performansRows : kadroRows
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       {selected && (
         <DetailPanel person={selected} onClose={() => setSelected(null)} />
       )}
@@ -292,7 +292,7 @@ export default function BossMPersonelPage() {
       )}
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-6">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="space-y-2 animate-pulse">
             {[...Array(5)].map((_, i) => (

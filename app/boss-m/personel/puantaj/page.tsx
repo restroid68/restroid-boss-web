@@ -39,10 +39,10 @@ export default function BossMPuantajPage() {
   })()
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       <BossMPageHeader title="Puantaj" showBack />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         <p className="text-xs text-muted-foreground leading-relaxed mb-4">
           İşe giriş ve çıkış saati (PIN). Nakit teslimi (vardiya) ve Z raporu değildir. Kasada «Mesaiyi bitir» çıkışı kaydeder.
         </p>

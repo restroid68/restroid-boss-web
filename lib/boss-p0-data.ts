@@ -12,16 +12,19 @@ import {
 } from '@/lib/boss-mock'
 import {
   bossFetch,
-  fetchSalesAnalysisDays,
+  fetchSalesAnalysisEndingAt,
+  fetchSalesAnalysisForDay,
   fetchSalesAnalysisTodayFull,
   formatMoneyTR,
   parseMoneyTR,
   todayYmd,
 } from '@/lib/boss-api'
 import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
+import { formatBossDateTime, formatBossDayChip, istanbulYmd, isBossYmd } from '@/lib/boss-wall-clock'
 import { bossBranchDisplayLabel } from '@/lib/boss-branch-display'
 import { readNativeSession, type BossNativeSession } from '@/lib/boss-bridge'
 import {
+  formatBossEventTime,
   mapNotificationToAlertRow,
   mapNotificationToAuditAlert,
   type BossNotificationApiRow,
@@ -44,13 +47,30 @@ export type AnaPlatformRow = {
   revenue: number
 }
 
+export type AnaFinanceSheetKind = 'kasa' | 'banka' | 'cekmece' | 'gider'
+
 export type AnaFinanceRow = {
-  key: string
+  key: AnaFinanceSheetKind
   label: string
   value: string
   detail: string
   status: 'ok' | 'warning'
   href?: string
+}
+
+export type AnaFinanceSheetLine = {
+  id: string
+  title: string
+  sub: string
+  amount: string
+  sign: 'positive' | 'negative' | 'neutral'
+  time: string
+}
+
+export type AnaFinanceSheetData = {
+  kind: AnaFinanceSheetKind
+  lines: AnaFinanceSheetLine[]
+  source: 'api' | 'mock'
 }
 
 export type AnaStaffSummary = {
@@ -114,7 +134,6 @@ export type DenetimDashboardData = {
 
 export type KasaDashboardData = {
   accounts: Account[]
-  ledger: LedgerEntry[]
   source: 'api' | 'mock'
 }
 
@@ -271,6 +290,9 @@ function mapFinanceRows(
   shiftSummary: Record<string, unknown> | null,
   openShiftCount: number,
   closedShiftCount: number,
+  expenseTotal: number,
+  expenseDetail = 'Bugün',
+  isToday = true,
 ): AnaFinanceRow[] {
   let cash = 0
   let bank = 0
@@ -311,7 +333,11 @@ function mapFinanceRows(
       key: 'kasa',
       label: 'Kasa',
       value: `₺${formatMoneyTR(cash, cash % 1 === 0 ? 0 : 2)}`,
-      detail: cashNameCount > 1 ? `${cashNameCount} nakit hesap` : 'Nakit',
+      detail: isToday
+        ? cashNameCount > 1
+          ? `${cashNameCount} nakit hesap`
+          : 'Nakit'
+        : 'Güncel bakiye',
       status: 'ok',
       href: '/boss-m/kasa',
     },
@@ -319,7 +345,11 @@ function mapFinanceRows(
       key: 'banka',
       label: 'Banka / POS',
       value: `₺${formatMoneyTR(bank + pos, (bank + pos) % 1 === 0 ? 0 : 2)}`,
-      detail: bankNameCount + (pos > 0 ? 1 : 0) > 1 ? 'Kart ve banka' : 'Kart tahsilatı',
+      detail: isToday
+        ? bankNameCount + (pos > 0 ? 1 : 0) > 1
+          ? 'Kart ve banka'
+          : 'Kart tahsilatı'
+        : 'Güncel bakiye',
       status: 'ok',
       href: '/boss-m/kasa',
     },
@@ -330,6 +360,14 @@ function mapFinanceRows(
       detail: drawerDetail,
       status: drawerStatus,
       href: '/boss-m/raporlar/vardiya',
+    },
+    {
+      key: 'gider',
+      label: 'Giderler',
+      value: `₺${formatMoneyTR(expenseTotal, expenseTotal % 1 === 0 ? 0 : 2)}`,
+      detail: expenseDetail,
+      status: 'ok',
+      href: '/boss-m/kasa/hareket?type=gider',
     },
   ]
 }
@@ -379,6 +417,14 @@ function emptyAna(session: BossNativeSession | null, source: 'api' | 'mock'): An
         status: 'ok',
         href: '/boss-m/raporlar/vardiya',
       },
+      {
+        key: 'gider',
+        label: 'Giderler',
+        value: '₺0',
+        detail: 'Bugün',
+        status: 'ok',
+        href: '/boss-m/kasa/hareket?type=gider',
+      },
     ],
     staff: emptyStaff(),
     branches: [],
@@ -401,13 +447,21 @@ function channelsFromShares(shares: AnaChannelShare[]): ChannelCard[] {
     }))
 }
 
-export async function loadAnaDashboard(): Promise<AnaDashboardData> {
+export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardData> {
   const session = readNativeSession()
   const fallback = emptyAna(session, 'mock')
   if (!session?.token) return fallback
 
   try {
-    const day = todayYmd()
+    const today = istanbulYmd()
+    const selectedDay = isBossYmd(day) ? day : today
+    const isToday = selectedDay === today
+    const dayChip = formatBossDayChip(selectedDay, today)
+    const liveEmpty = Promise.resolve({
+      ok: true as const,
+      status: 200,
+      data: { count: 0, rows: [] as unknown[], items: [] as unknown[], orders: [] as unknown[] },
+    })
     const [
       sales,
       week,
@@ -420,35 +474,41 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
       personel,
       kanallar,
     ] = await Promise.all([
-      fetchSalesAnalysisTodayFull(),
-      fetchSalesAnalysisDays(7),
+      fetchSalesAnalysisForDay(selectedDay),
+      fetchSalesAnalysisEndingAt(selectedDay, 7),
+      isToday
+        ? withBossCache(
+            'api:online-pending-count',
+            BOSS_TTL.live,
+            () => bossFetch<{ count?: number }>('/api/sales/online-orders/pending-count'),
+            { isCacheable: (r) => r.ok },
+          )
+        : liveEmpty,
+      isToday
+        ? withBossCache(
+            'api:qr-pending-count',
+            BOSS_TTL.live,
+            () => bossFetch<{ count?: number }>('/api/sales/qr-menu-orders/pending-count'),
+            { isCacheable: (r) => r.ok },
+          )
+        : liveEmpty,
+      isToday
+        ? withBossCache(
+            'api:active-orders',
+            BOSS_TTL.live,
+            () =>
+              bossFetch<{ rows?: unknown[]; items?: unknown[]; orders?: unknown[]; count?: number }>(
+                '/api/sales/active-orders',
+              ),
+            { isCacheable: (r) => r.ok },
+          )
+        : liveEmpty,
       withBossCache(
-        'api:online-pending-count',
-        BOSS_TTL.live,
-        () => bossFetch<{ count?: number }>('/api/sales/online-orders/pending-count'),
-        { isCacheable: (r) => r.ok },
-      ),
-      withBossCache(
-        'api:qr-pending-count',
-        BOSS_TTL.live,
-        () => bossFetch<{ count?: number }>('/api/sales/qr-menu-orders/pending-count'),
-        { isCacheable: (r) => r.ok },
-      ),
-      withBossCache(
-        'api:active-orders',
-        BOSS_TTL.live,
-        () =>
-          bossFetch<{ rows?: unknown[]; items?: unknown[]; orders?: unknown[]; count?: number }>(
-            '/api/sales/active-orders',
-          ),
-        { isCacheable: (r) => r.ok },
-      ),
-      withBossCache(
-        'api:boss-notifications:8',
+        `api:boss-notifications:8:${selectedDay}`,
         BOSS_TTL.live,
         () =>
           bossFetch<{ items?: BossNotificationApiRow[] }>('/api/boss/notifications', {
-            query: { limit: '8' },
+            query: { limit: '8', day: selectedDay },
           }),
         { isCacheable: (r) => r.ok },
       ),
@@ -459,12 +519,12 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
         { persist: true, isCacheable: (r) => r.ok },
       ),
       withBossCache(
-        'api:cash-shifts:today',
+        `api:cash-shifts:${selectedDay}`,
         BOSS_TTL.kpi,
         () =>
           bossFetch<{ items?: unknown[]; summary?: Record<string, unknown> }>(
             '/api/finance/cash-shifts',
-            { query: { page: '1', pageSize: '20', from: day, to: day } },
+            { query: { page: '1', pageSize: '20', from: selectedDay, to: selectedDay } },
           ),
         { isCacheable: (r) => r.ok },
       ),
@@ -576,11 +636,15 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
       if (row.closedAt) closedShiftCount += 1
       else openShiftCount += 1
     }
+    const expenseTotal = Math.abs(num(summary.expenses))
     const finance = mapFinanceRows(
       accountsRaw as unknown[],
       asMap(shifts.data?.summary),
       openShiftCount,
       closedShiftCount,
+      expenseTotal,
+      dayChip,
+      isToday,
     )
 
     const waiterRaw = Array.isArray(daySummary?.waiterSales) ? daySummary!.waiterSales : []
@@ -603,7 +667,7 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
     const staff: AnaStaffSummary = {
       onDuty: sellerNames.length,
       total: Math.max(activeStaffNames.length, sellerNames.length),
-      dutyLabel: sellerNames.length ? 'bugün satış' : 'aktif kadro',
+      dutyLabel: sellerNames.length ? (isToday ? 'bugün satış' : 'o gün satış') : 'aktif kadro',
       topPerformer: topName,
       topPerformerSales: topName ? `₺${formatMoneyTR(topAmt)}` : null,
       initials: (sellerNames.length ? sellerNames : activeStaffNames)
@@ -611,20 +675,22 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
         .map(nameInitials),
     }
 
+    const wasteAmt = num(summary.waste ?? summary.wasteAmount)
+    const cancelAmt = num(summary.cancellations)
     const kpis: KpiMetric[] = [
       {
         label: 'Günlük Ciro',
         value: formatMoneyTR(ciro),
         delta: ciroDelta,
         unit: '₺',
-        description: 'Bugün',
+        description: dayChip,
       },
       {
         label: 'Sipariş / Fiş',
         value: formatMoneyTR(tickets),
         delta: 0,
         unit: '',
-        description: 'Bugün kapanan',
+        description: isToday ? 'Bugün kapanan' : `${dayChip} kapanan`,
       },
       {
         label: 'Ortalama Sepet',
@@ -633,14 +699,22 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
         unit: '₺',
         description: 'Fiş başına',
       },
-      {
-        label: 'Canlı Sipariş',
-        value: String(Math.max(0, Math.round(liveOrders))),
-        delta: 0,
-        unit: '',
-        description: 'Şu an açık',
-        neutral: true,
-      },
+      isToday
+        ? {
+            label: 'Canlı Sipariş',
+            value: String(Math.max(0, Math.round(liveOrders))),
+            delta: 0,
+            unit: '',
+            description: 'Şu an açık',
+            neutral: true,
+          }
+        : {
+            label: 'Zayi / İptal',
+            value: formatMoneyTR(wasteAmt + cancelAmt),
+            delta: 0,
+            unit: '₺',
+            description: dayChip,
+          },
     ]
 
     const notifyItems = Array.isArray(logs.data?.items) ? logs.data!.items! : []
@@ -678,11 +752,11 @@ export async function loadAnaDashboard(): Promise<AnaDashboardData> {
         href: '/boss-m/raporlar/vardiya',
       })
     }
-    const waste = num(summary.waste ?? summary.wasteAmount)
+    const waste = wasteAmt
     if (waste > 0.009) {
       opsAlerts.push({
         id: 'ops-waste',
-        title: 'Bugün zayi',
+        title: isToday ? 'Bugün zayi' : `${dayChip} zayi`,
         detail: `₺${formatMoneyTR(waste)} zayi kaydı`,
         severity: 'info',
         module: 'Stok',
@@ -847,18 +921,19 @@ export async function loadFinansDashboard(): Promise<FinansDashboardData> {
   }
 }
 
-export async function loadDenetimDashboard(): Promise<DenetimDashboardData> {
+export async function loadDenetimDashboard(day = todayYmd()): Promise<DenetimDashboardData> {
   const session = readNativeSession()
   if (!session?.token) return { alerts: [], nextCursor: null, source: 'mock' }
 
   try {
+    const selectedDay = isBossYmd(day) ? day : todayYmd()
     const inbox = await withBossCache(
-      'api:boss-notifications:50',
+      `api:boss-notifications:50:${selectedDay}`,
       BOSS_TTL.live,
       () =>
         bossFetch<{ items?: BossNotificationApiRow[]; nextCursor?: string | null }>(
           '/api/boss/notifications',
-          { query: { limit: '50' } },
+          { query: { limit: '50', day: selectedDay } },
         ),
       { isCacheable: (r) => r.ok },
     )
@@ -897,92 +972,195 @@ function accountingTypeLabelTR(type: string): string {
   return map[type] ?? (type || 'Hareket')
 }
 
-export async function loadKasaDashboard(): Promise<KasaDashboardData> {
+function financeAccountKind(typeRaw: unknown): 'cash' | 'bank' | 'pos' {
+  const t = String(typeRaw ?? '').toLowerCase()
+  if (t.includes('bank')) return 'bank'
+  if (t.includes('pos') || t.includes('card')) return 'pos'
+  return 'cash'
+}
+
+function txList(raw: { items?: unknown[]; transactions?: unknown[] } | null | undefined): unknown[] {
+  if (Array.isArray(raw?.items)) return raw.items!
+  if (Array.isArray(raw?.transactions)) return raw.transactions!
+  return []
+}
+
+function mapTxToSheetLine(raw: unknown, i: number): AnaFinanceSheetLine {
+  const row = asMap(raw) ?? {}
+  const amount = num(row.amount ?? row.signedAmount)
+  const positive = amount >= 0
+  const when = String(row.occurredAt ?? row.createdAt ?? '')
+  const typeLabel = accountingTypeLabelTR(String(row.type ?? ''))
+  const account = asMap(row.account)
+  const accountName = account ? String(account.name ?? '').trim() : ''
+  const descr = String(row.description ?? '').trim() || typeLabel
+  return {
+    id: String(row.id ?? i),
+    title: descr,
+    sub: accountName || typeLabel,
+    amount: `${positive ? '+' : '-'}₺${formatMoneyTR(Math.abs(amount), Math.abs(amount) % 1 === 0 ? 0 : 2)}`,
+    sign: amount === 0 ? 'neutral' : positive ? 'positive' : 'negative',
+    time: formatBossEventTime(when),
+  }
+}
+
+export async function loadAnaFinanceSheet(
+  kind: AnaFinanceSheetKind,
+  day = todayYmd(),
+): Promise<AnaFinanceSheetData> {
   const session = readNativeSession()
-  // Oturum yokken örnek hesap/hareket gösterme — boş liste ('mock' = önizleme,
-  // cache'lenmez; gerçek veri değildir)
-  if (!session?.token) return { accounts: [], ledger: [], source: 'mock' }
+  if (!session?.token) return { kind, lines: [], source: 'mock' }
+
+  const selectedDay = isBossYmd(day) ? day : todayYmd()
 
   try {
-  const [meta, tx] = await Promise.all([
-    withBossCache(
+    if (kind === 'cekmece') {
+      const shifts = await withBossCache(
+        `api:cash-shifts:${selectedDay}`,
+        BOSS_TTL.kpi,
+        () =>
+          bossFetch<{ items?: unknown[]; summary?: Record<string, unknown> }>(
+            '/api/finance/cash-shifts',
+            { query: { page: '1', pageSize: '20', from: selectedDay, to: selectedDay } },
+          ),
+        { isCacheable: (r) => r.ok },
+      )
+      const items = Array.isArray(shifts.data?.items) ? shifts.data!.items! : []
+      const lines: AnaFinanceSheetLine[] = items.map((raw, i) => {
+        const row = asMap(raw) ?? {}
+        const variance = num(row.varianceAmount)
+        const seq = Math.max(0, Math.floor(num(row.seq)))
+        const name = String(row.personnelName ?? '—').trim() || '—'
+        const mode = String(row.mode ?? '') === 'wallet' ? 'Cüzdan' : 'Havuz kasa'
+        const closed = Boolean(row.closedAt)
+        return {
+          id: String(row.id ?? i),
+          title: seq ? `#${seq} · ${name}` : name,
+          sub: `${mode} · ${closed ? 'kapalı' : 'açık'}`,
+          amount: `${variance < 0 ? '-' : variance > 0 ? '+' : ''}₺${formatMoneyTR(Math.abs(variance), 2)}`,
+          sign: variance < -0.009 ? 'negative' : variance > 0.009 ? 'positive' : 'neutral',
+          time: formatBossEventTime(row.closedAt ?? row.startedAt),
+        }
+      })
+      return { kind, lines, source: shifts.ok ? 'api' : 'mock' }
+    }
+
+    const tx = await withBossCache(
+      `api:accounting-tx:${selectedDay}:50`,
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
+          '/api/accounting/transactions',
+          { query: { page: '1', pageSize: '50', from: selectedDay, to: selectedDay } },
+        ),
+      { isCacheable: (r) => r.ok },
+    )
+    const items = txList(tx.data)
+    const filtered = items.filter((raw) => {
+      const row = asMap(raw) ?? {}
+      const type = String(row.type ?? '').toUpperCase()
+      const accKind = financeAccountKind(asMap(row.account)?.type)
+      if (kind === 'gider') return type === 'EXPENSE'
+      if (kind === 'kasa') return accKind === 'cash'
+      return accKind === 'bank' || accKind === 'pos'
+    })
+    return {
+      kind,
+      lines: filtered.map(mapTxToSheetLine),
+      source: tx.ok ? 'api' : 'mock',
+    }
+  } catch {
+    return { kind, lines: [], source: 'api' }
+  }
+}
+
+function mapAccountingTxToLedger(raw: unknown, i: number): LedgerEntry {
+  const row = asMap(raw) ?? {}
+  const amount = num(row.amount ?? row.signedAmount)
+  const positive = amount >= 0
+  const typeLabel = accountingTypeLabelTR(String(row.type ?? ''))
+  const descr = String(row.description ?? '').trim() || typeLabel
+  return {
+    id: String(row.id ?? i),
+    datetime: formatBossDateTime(row.occurredAt ?? row.createdAt),
+    description: descr,
+    amount: `${positive ? '+' : '-'}₺${formatMoneyTR(Math.abs(amount))}`,
+    sign: positive ? 'positive' : 'negative',
+    category: typeLabel,
+  }
+}
+
+function txRowAccountId(raw: unknown): string {
+  const row = asMap(raw) ?? {}
+  const nested = asMap(row.account)
+  return String(row.accountId ?? nested?.id ?? '').trim()
+}
+
+export async function loadKasaLedger(accountId: string): Promise<LedgerEntry[]> {
+  const id = accountId.trim()
+  if (!id) return []
+  const session = readNativeSession()
+  if (!session?.token) return []
+  try {
+    const tx = await withBossCache(
+      `api:accounting-tx:account:${id}:v2`,
+      BOSS_TTL.kpi,
+      () =>
+        bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
+          '/api/accounting/transactions',
+          { query: { page: '1', take: '40', pageSize: '40', accountId: id } },
+        ),
+      { isCacheable: (r) => r.ok },
+    )
+    if (!tx.ok) return []
+    return txList(tx.data)
+      .filter((raw) => txRowAccountId(raw) === id)
+      .map((raw, i) => mapAccountingTxToLedger(raw, i))
+  } catch {
+    return []
+  }
+}
+
+export async function loadKasaDashboard(): Promise<KasaDashboardData> {
+  const session = readNativeSession()
+  // Oturum yokken örnek hesap gösterme — boş liste ('mock' = önizleme)
+  if (!session?.token) return { accounts: [], source: 'mock' }
+
+  try {
+    const meta = await withBossCache(
       'api:accounting-meta',
       BOSS_TTL.accounting,
       () => bossFetch<Record<string, unknown>>('/api/accounting/meta'),
       { persist: true, isCacheable: (r) => r.ok },
-    ),
-    withBossCache(
-      'api:accounting-tx:recent:30',
-      BOSS_TTL.kpi,
-      () =>
-        // Son 30 hareket (gün filtresi yok) — gece yarısı sonrası boş ekran olmasın
-        bossFetch<{ items?: unknown[]; transactions?: unknown[] }>(
-          '/api/accounting/transactions',
-          { query: { page: '1', pageSize: '30' } },
-        ),
-      { isCacheable: (r) => r.ok },
-    ),
-  ])
+    )
 
-  const accountsRaw =
-    (Array.isArray(meta.data?.accounts) && meta.data!.accounts) ||
-    (Array.isArray(asMap(meta.data)?.cashAccounts) &&
-      (asMap(meta.data)!.cashAccounts as unknown[])) ||
-    []
+    const accountsRaw =
+      (Array.isArray(meta.data?.accounts) && meta.data!.accounts) ||
+      (Array.isArray(asMap(meta.data)?.cashAccounts) &&
+        (asMap(meta.data)!.cashAccounts as unknown[])) ||
+      []
 
-  const accounts: Account[] = (accountsRaw as unknown[]).map((raw, i) => {
-    const row = asMap(raw) ?? {}
-    const typeRaw = String(row.type ?? row.kind ?? 'cash').toLowerCase()
-    const type: Account['type'] = typeRaw.includes('bank')
-      ? 'bank'
-      : typeRaw.includes('pos') || typeRaw.includes('card')
-        ? 'pos'
-        : 'cash'
-    const bal = num(row.balance ?? row.currentBalance ?? row.computed_balance)
-    return {
-      id: String(row.id ?? i),
-      name: String(row.name ?? row.label ?? `Hesap ${i + 1}`),
-      type,
-      balance: formatMoneyTR(bal, bal % 1 === 0 ? 0 : 2),
-      currency: '₺',
-    }
-  })
+    const accounts: Account[] = (accountsRaw as unknown[]).map((raw, i) => {
+      const row = asMap(raw) ?? {}
+      const typeRaw = String(row.type ?? row.kind ?? 'cash').toLowerCase()
+      const type: Account['type'] = typeRaw.includes('bank')
+        ? 'bank'
+        : typeRaw.includes('pos') || typeRaw.includes('card')
+          ? 'pos'
+          : 'cash'
+      const bal = num(row.balance ?? row.currentBalance ?? row.computed_balance)
+      return {
+        id: String(row.id ?? i),
+        name: String(row.name ?? row.label ?? `Hesap ${i + 1}`),
+        type,
+        balance: formatMoneyTR(bal, bal % 1 === 0 ? 0 : 2),
+        currency: '₺',
+      }
+    })
 
-  const txItems = Array.isArray(tx.data?.items)
-    ? tx.data!.items!
-    : Array.isArray(tx.data?.transactions)
-      ? tx.data!.transactions!
-      : []
-
-  const ledger: LedgerEntry[] = txItems.map((raw, i) => {
-    const row = asMap(raw) ?? {}
-    const amount = num(row.amount ?? row.signedAmount)
-    const positive = amount >= 0
-    // Cloud accounting_transaction satırı: occurredAt + description + type (enum)
-    const when = String(row.occurredAt ?? row.createdAt ?? '')
-    const typeLabel = accountingTypeLabelTR(String(row.type ?? ''))
-    const account = asMap(row.account)
-    const accountName = account ? String(account.name ?? '') : ''
-    const descr = String(row.description ?? '').trim() || typeLabel
-    return {
-      id: String(row.id ?? i),
-      datetime: when ? when.slice(0, 16).replace('T', ' ') : '—',
-      description: accountName ? `${descr} — ${accountName}` : descr,
-      amount: `${positive ? '+' : '-'}₺${formatMoneyTR(Math.abs(amount))}`,
-      sign: positive ? 'positive' : 'negative',
-      category: typeLabel,
-    }
-  })
-
-  // Oturum varken örnek (mock) hesap/hareket gösterme — boş liste doğru durum.
-  // API hatasında da veri boş ama source 'api' kalır (mock veri dönmüyoruz).
-  return {
-    accounts,
-    ledger: meta.ok || tx.ok ? ledger : [],
-    source: 'api',
-  }
+    return { accounts, source: 'api' }
   } catch {
-    return { accounts: [], ledger: [], source: 'api' }
+    return { accounts: [], source: 'api' }
   }
 }
 

@@ -26,7 +26,7 @@ function ZDetailPanel({ report, onClose }: { report: ZReport; onClose: () => voi
   ]
 
   return (
-    <div className="fixed inset-0 bg-background z-40 flex flex-col">
+    <div className="boss-over-native-nav flex flex-col bg-background">
       <BossMPageHeader
         title={report.zNo}
         showBack={false}
@@ -40,7 +40,7 @@ function ZDetailPanel({ report, onClose }: { report: ZReport; onClose: () => voi
         }
       />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {/* Terminal + date badge */}
         <div className="flex items-center gap-2 py-3 mb-2">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-2 border border-border text-xs text-muted-foreground">
@@ -92,12 +92,12 @@ export default function BossMZRaporlarPage() {
   }, {})
 
   return (
-    <main className="flex flex-col h-full bg-transparent">
+    <main className="flex min-h-0 flex-1 flex-col bg-transparent">
       {selected && <ZDetailPanel report={selected} onClose={() => setSelected(null)} />}
 
       <BossMPageHeader title="Z Raporları" showBack />
 
-      <div className="flex-1 overflow-y-auto overscroll-none px-4 pb-8">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         <p className="text-xs text-muted-foreground leading-relaxed mb-4">
           Gün sonu kasa fişi. Nakit teslimi için{' '}
           <Link href="/boss-m/raporlar/vardiya" className="text-foreground font-medium underline underline-offset-2">

@@ -238,7 +238,7 @@ export const SISTEM_CARDS: SistemCard[] = [
   {
     id: 'kanallar',
     title: 'Servis Kanalları',
-    description: 'Dine-in, paket, gel-al, self, online ve QR kanallarını yönet',
+    description: 'Masa, paket, gel-al, self, online ve QR kanallarını yönet',
     href: '/boss-m/sistem/kanallar',
     icon: 'signal',
     badge: '6 aktif',
@@ -286,7 +286,7 @@ export interface ServiceChannel {
 }
 
 export const SERVICE_CHANNELS: ServiceChannel[] = [
-  { id: 'dinein',  label: 'Dine-in',  description: 'Restoran içi masa servisi',         enabled: true  },
+  { id: 'dinein',  label: 'Masa',     description: 'Restoran içi masa servisi',         enabled: true  },
   { id: 'paket',   label: 'Paket',    description: 'Kapıda teslimat siparişleri',        enabled: true  },
   { id: 'gelal',   label: 'Gel-al',   description: 'Müşterinin kendi teslim alması',     enabled: true  },
   { id: 'self',    label: 'Self',     description: 'Self-servis kiosk siparişleri',      enabled: false },
@@ -626,8 +626,11 @@ export interface Cari {
   id: string
   type: CariType
   name: string
-  balance: number    // positive = borçlu (owes us), negative = alacaklı
+  /** Panel defteri: artı = alacak, eksi = borç. */
+  balance: number
   lastMovement: string
+  subtitle?: string
+  hasCurrentAccount?: boolean
   ledger: { date: string; desc: string; amount: string; sign: '+' | '-' }[]
 }
 

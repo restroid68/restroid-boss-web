@@ -186,7 +186,7 @@ export default function BossMStokPage() {
 
   if (loading) {
     return (
-      <main className="flex flex-col h-full bg-transparent overflow-hidden">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
         <BossMPageHeader title="Stok" showBack />
         <StokSkeleton />
       </main>
@@ -194,7 +194,7 @@ export default function BossMStokPage() {
   }
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
       {/* ── Header ── */}
       <BossMPageHeader
         title="Stok"
@@ -210,7 +210,7 @@ export default function BossMStokPage() {
       />
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[72px]">
+      <div className="flex-1 overflow-y-auto overscroll-none boss-nested-scroll">
         {/* ── Warehouse filter chips ── */}
         <div className="flex gap-2 px-4 pb-4 overflow-x-auto">
           {warehouseChips.map((w) => (

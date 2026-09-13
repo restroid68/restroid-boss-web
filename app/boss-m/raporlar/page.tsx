@@ -75,7 +75,7 @@ export default function BossMRaporlarPage() {
   const hasApiData = data.source === 'api' && rows.length > 0
 
   return (
-    <main className="flex flex-col gap-4 pb-4">
+    <main className="flex flex-col gap-4 pb-8">
       <BossMPageHeader title="Raporlar" />
 
       <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground px-4">

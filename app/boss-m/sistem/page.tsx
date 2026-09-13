@@ -154,7 +154,7 @@ export default function BossMSistemPage() {
   }
 
   return (
-    <main className="flex flex-col gap-0 pb-4">
+    <main className="flex flex-col gap-0 pb-8">
       <BossMPageHeader title="Sistem Ayarları" showBack />
 
       <div className="mx-4 mb-3 flex flex-col rounded-2xl border border-border bg-card px-4 py-4">

@@ -22,46 +22,51 @@ import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadStokHub } from '@/lib/boss-page-data'
 import { cn } from '@/lib/utils'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 const STATUS_DOT: Record<StokItem['status'], string> = {
-  normal:  'bg-success',
-  kritik:  'bg-warning',
+  normal: 'bg-success',
+  kritik: 'bg-warning',
   tukendi: 'bg-danger',
 }
 
 const STATUS_BADGE: Record<StokItem['status'], string> = {
-  normal:  'bg-success/10 text-success border-success/20',
-  kritik:  'bg-warning/10 text-warning border-warning/20',
-  tukendi: 'bg-danger/10  text-danger  border-danger/20',
+  normal: 'bg-success/10 text-success border-success/20',
+  kritik: 'bg-warning/10 text-warning border-warning/20',
+  tukendi: 'bg-danger/10 text-danger border-danger/20',
 }
 
 const STATUS_LABEL: Record<StokItem['status'], string> = {
-  normal:  'Normal',
-  kritik:  'Kritik',
+  normal: 'Normal',
+  kritik: 'Kritik',
   tukendi: 'Tükendi',
 }
 
 function warehouseName(id: string, warehouses: StokWarehouse[]) {
-  return warehouses.find((w) => w.id === id)?.name ?? id
+  const name = warehouses.find((w) => w.id === id)?.name ?? ''
+  return name.trim()
+}
+
+function formatStockQty(n: number): string {
+  if (!Number.isFinite(n)) return '0'
+  return new Intl.NumberFormat('tr-TR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  }).format(n)
 }
 
 function KritikSkeleton() {
   return (
     <div className="flex flex-col gap-3 px-4 animate-pulse">
+      <div className="h-11 rounded-xl bg-surface-2" />
       <div className="flex gap-2">
-        <div className="h-7 w-24 bg-surface-2 rounded-full" />
-        <div className="h-7 w-24 bg-surface-2 rounded-full" />
+        <div className="h-8 w-24 rounded-full bg-surface-2" />
+        <div className="h-8 w-20 rounded-full bg-surface-2" />
       </div>
-      <div className="h-8 w-40 bg-surface-2 rounded-xl" />
       {[...Array(5)].map((_, i) => (
-        <div key={i} className="h-16 bg-surface-2 rounded-2xl" />
+        <div key={i} className="h-16 rounded-2xl bg-surface-2" />
       ))}
     </div>
   )
 }
-
-// ── Detail Panel ──────────────────────────────────────────────────────────────
 
 function DetailPanel({
   item,
@@ -72,73 +77,74 @@ function DetailPanel({
   warehouses: StokWarehouse[]
   onClose: () => void
 }) {
+  const depo = warehouseName(item.warehouseId, warehouses)
   return (
-    <div className="flex flex-col h-full bg-transparent">
+    <div className="flex min-h-0 flex-1 flex-col bg-transparent">
       <header className="flex items-center gap-3 px-4 pt-4 pb-3">
         <button
+          type="button"
           onClick={onClose}
           aria-label="Geri"
-          className="flex items-center justify-center w-11 h-11 -ml-2 rounded-xl text-muted-foreground active:bg-surface-2 transition-colors"
+          className="flex h-11 w-11 -ml-2 items-center justify-center rounded-xl text-muted-foreground transition-colors active:bg-surface-2"
         >
           <ChevronLeft size={22} />
         </button>
-        <h1 className="flex-1 text-lg font-semibold text-foreground tracking-tight truncate">
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight text-foreground">
           {item.name}
         </h1>
-        <span className={cn(
-          'text-[10px] font-semibold px-2 py-1 rounded-full border',
-          STATUS_BADGE[item.status]
-        )}>
+        <span
+          className={cn(
+            'shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold',
+            STATUS_BADGE[item.status],
+          )}
+        >
           {STATUS_LABEL[item.status]}
         </span>
       </header>
 
-      <div className="flex-1 overflow-y-auto overscroll-none pb-[72px] px-4">
-        <div className="bg-card border border-border rounded-2xl overflow-hidden mb-4">
+      <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
+        <div className="mb-4 overflow-hidden rounded-2xl border border-border bg-card">
           <div className="flex flex-col divide-y divide-border">
             {[
-              { icon: Package,      label: 'Stok Miktarı',   value: `${item.stock} ${item.unit}` },
-              { icon: Warehouse,    label: 'Depo',            value: warehouseName(item.warehouseId, warehouses) },
-              { icon: TrendingDown, label: 'Min. Eşik',       value: `${item.minStock} ${item.unit}` },
-              { icon: CalendarDays, label: 'Son hareket',     value: item.lastMovement },
+              {
+                icon: Package,
+                label: 'Mevcut miktar',
+                value: `${formatStockQty(item.stock)} ${item.unit}`,
+              },
+              ...(depo ? [{ icon: Warehouse, label: 'Depo', value: depo }] : []),
+              {
+                icon: TrendingDown,
+                label: 'Kritik eşik',
+                value: `${formatStockQty(item.minStock)} ${item.unit}`,
+              },
+              { icon: CalendarDays, label: 'Son hareket', value: item.lastMovement },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-center gap-4 px-4 py-3.5">
-                <div className="flex items-center justify-center w-9 h-9 bg-surface-2 rounded-xl shrink-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-2">
                   <Icon size={15} className="text-muted-foreground" strokeWidth={1.7} />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-[11px] text-muted-foreground">{label}</p>
-                  <p className="text-sm font-semibold text-foreground mt-0.5">{value}</p>
+                  <p className="mt-0.5 text-sm font-semibold text-foreground">{value}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl px-4 py-4 mb-4 flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 bg-primary/10 rounded-xl shrink-0">
+        <div className="mb-4 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <Package size={15} className="text-primary" strokeWidth={1.7} />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] text-muted-foreground">Stok değeri</p>
-            <p className="text-sm font-semibold text-foreground mt-0.5">{item.value}</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">{item.value}</p>
           </div>
-          <span className="text-[10px] text-muted-foreground">({item.code})</span>
-        </div>
-
-        <div className="bg-surface-2 border border-border rounded-2xl px-4 py-5 flex flex-col items-center gap-2 text-center">
-          <CalendarDays size={24} className="text-muted-foreground/40" strokeWidth={1.3} />
-          <p className="text-sm font-medium text-muted-foreground">Hareket geçmişi</p>
-          <p className="text-[11px] text-muted-foreground/60 max-w-[220px] leading-relaxed">
-            Detaylı stok hareketleri Depo uygulamasında veya API entegrasyonuyla görüntülenecek.
-          </p>
         </div>
       </div>
     </div>
   )
 }
-
-// ── List Row ──────────────────────────────────────────────────────────────────
 
 function KritikRow({
   item,
@@ -149,31 +155,40 @@ function KritikRow({
   warehouses: StokWarehouse[]
   onSelect: (item: StokItem) => void
 }) {
+  const depo = warehouseName(item.warehouseId, warehouses)
+  const subtitle =
+    item.status === 'kritik'
+      ? [depo, `eşik ${formatStockQty(item.minStock)} ${item.unit}`].filter(Boolean).join(' · ')
+      : depo
+
   return (
     <button
+      type="button"
       onClick={() => onSelect(item)}
-      className="flex items-center gap-3 px-4 py-3.5 w-full text-left active:bg-surface-2 transition-colors"
+      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-surface-2"
     >
-      <div className={cn('w-2 h-2 rounded-full shrink-0 mt-0.5', STATUS_DOT[item.status])} />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">
-          {item.code}
-          <span className="mx-1 opacity-40">·</span>
-          {warehouseName(item.warehouseId, warehouses)}
-        </p>
+      <div className={cn('mt-1 h-2.5 w-2.5 shrink-0 rounded-full', STATUS_DOT[item.status])} />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold leading-snug text-foreground">{item.name}</p>
+        {subtitle ? (
+          <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{subtitle}</p>
+        ) : null}
       </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <span className={cn(
-          'text-sm font-bold tabular-nums',
-          item.status === 'tukendi' ? 'text-danger' : 'text-warning'
-        )}>
-          {item.stock} {item.unit}
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span
+          className={cn(
+            'text-sm font-bold tabular-nums',
+            item.status === 'tukendi' ? 'text-danger' : 'text-warning',
+          )}
+        >
+          {formatStockQty(item.stock)} {item.unit}
         </span>
-        <span className={cn(
-          'text-[10px] font-semibold px-1.5 py-0.5 rounded-full border',
-          STATUS_BADGE[item.status]
-        )}>
+        <span
+          className={cn(
+            'rounded-full border px-1.5 py-0.5 text-[10px] font-semibold',
+            STATUS_BADGE[item.status],
+          )}
+        >
           {STATUS_LABEL[item.status]}
         </span>
       </div>
@@ -200,20 +215,16 @@ function KritikPageInner() {
 
   const nonNormalItems = data.items.filter((i) => i.status !== 'normal')
 
-  const [query,      setQuery]      = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
-  const [sort,       setSort]       = useState<SortKey>('En kritik')
-  const [selected,   setSelected]   = useState<StokItem | null>(null)
-
-  const SORTS: SortKey[] = ['En kritik', 'Ada göre']
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<SortKey>('En kritik')
+  const [selected, setSelected] = useState<StokItem | null>(null)
 
   const filtered = useMemo(() => {
-    let items = nonNormalItems.filter((i) =>
-      !query || i.name.toLowerCase().includes(query.toLowerCase())
-    )
+    const q = query.trim().toLocaleLowerCase('tr-TR')
+    let items = nonNormalItems.filter((i) => !q || i.name.toLocaleLowerCase('tr-TR').includes(q))
     if (sort === 'En kritik') {
       const order: Record<StokItem['status'], number> = { tukendi: 0, kritik: 1, normal: 2 }
-      items = [...items].sort((a, b) => order[a.status] - order[b.status])
+      items = [...items].sort((a, b) => order[a.status] - order[b.status] || a.name.localeCompare(b.name, 'tr'))
     } else {
       items = [...items].sort((a, b) => a.name.localeCompare(b.name, 'tr'))
     }
@@ -221,7 +232,7 @@ function KritikPageInner() {
   }, [query, sort, nonNormalItems])
 
   const tukendiCount = nonNormalItems.filter((i) => i.status === 'tukendi').length
-  const kritikCount  = nonNormalItems.filter((i) => i.status === 'kritik').length
+  const kritikCount = nonNormalItems.filter((i) => i.status === 'kritik').length
 
   useEffect(() => {
     if (loading || !preselectedId || selected) return
@@ -240,79 +251,69 @@ function KritikPageInner() {
   }
 
   return (
-    <main className="flex flex-col h-full bg-transparent overflow-hidden">
-      <BossMPageHeader
-        title="Kritik Stok"
-        showBack
-        trailing={
-          <button
-            onClick={() => { setSearchOpen((v) => !v); if (searchOpen) setQuery('') }}
-            aria-label={searchOpen ? 'Aramayı kapat' : 'Ara'}
-            className="flex items-center justify-center w-11 h-11 rounded-xl text-muted-foreground active:bg-surface-2 transition-colors"
-          >
-            {searchOpen ? <X size={18} /> : <Search size={18} />}
-          </button>
-        }
-      />
-
-      {searchOpen && (
-        <div className="px-4 pb-3">
-          <div className="flex items-center gap-3 bg-surface-2 border border-border rounded-xl px-4 h-11">
-            <Search size={15} className="text-muted-foreground shrink-0" />
-            <input
-              autoFocus
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ürün adı veya kod..."
-              className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
-            />
-            {query && (
-              <button onClick={() => setQuery('')} className="text-muted-foreground">
-                <X size={14} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
+      <BossMPageHeader title="Kritik Stok" showBack />
 
       {loading ? (
         <KritikSkeleton />
       ) : (
         <>
-          <div className="flex gap-2 px-4 pb-3">
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-danger/10 border border-danger/20">
-              <PackageX size={12} className="text-danger" />
-              <span className="text-[11px] font-semibold text-danger">{tukendiCount} tükendi</span>
-            </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-warning/10 border border-warning/20">
-              <AlertTriangle size={12} className="text-warning" />
-              <span className="text-[11px] font-semibold text-warning">{kritikCount} kritik</span>
+          <div className="px-4 pb-3">
+            <div className="flex h-11 items-center gap-3 rounded-xl border border-border bg-card/90 px-3">
+              <Search size={16} className="shrink-0 text-muted-foreground" />
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Ürün adı"
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
+              />
+              {query ? (
+                <button
+                  type="button"
+                  onClick={() => setQuery('')}
+                  aria-label="Aramayı temizle"
+                  className="flex !h-8 !w-8 !min-h-0 !min-w-0 items-center justify-center text-muted-foreground"
+                >
+                  <X size={14} />
+                </button>
+              ) : null}
             </div>
           </div>
 
-          <div className="flex gap-2 px-4 pb-3">
-            {SORTS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSort(s)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors',
-                  sort === s
-                    ? 'bg-primary/10 border-primary/40 text-primary'
-                    : 'bg-card border-border text-muted-foreground'
-                )}
-              >
-                {s === 'En kritik'
-                  ? <ArrowDownWideNarrow size={12} />
-                  : <ArrowUpAZ size={12} />
-                }
-                {s}
-              </button>
-            ))}
+          <div className="flex min-w-0 items-center gap-2 px-4 pb-3">
+            <div
+              className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto"
+              style={{ touchAction: 'pan-x' }}
+            >
+              <span className="inline-flex !min-h-8 !min-w-0 shrink-0 items-center gap-1.5 rounded-full border border-danger/25 bg-danger/10 px-2.5 py-1 text-[11px] font-semibold text-danger">
+                <PackageX size={12} />
+                {tukendiCount} tükendi
+              </span>
+              <span className="inline-flex !min-h-8 !min-w-0 shrink-0 items-center gap-1.5 rounded-full border border-warning/25 bg-warning/10 px-2.5 py-1 text-[11px] font-semibold text-warning">
+                <AlertTriangle size={12} />
+                {kritikCount} kritik
+              </span>
+            </div>
+            <div className="flex shrink-0 rounded-xl border border-border bg-card p-0.5">
+              {(['En kritik', 'Ada göre'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSort(s)}
+                  className={cn(
+                    'inline-flex !min-h-8 !min-w-0 items-center gap-1 rounded-lg px-2.5 text-[11px] font-medium',
+                    sort === s ? 'bg-primary/15 text-primary' : 'text-muted-foreground',
+                  )}
+                >
+                  {s === 'En kritik' ? <ArrowDownWideNarrow size={12} /> : <ArrowUpAZ size={12} />}
+                  {s === 'En kritik' ? 'Kritik' : 'Ad'}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto overscroll-none pb-[72px] px-4">
+          <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
             {filtered.length === 0 ? (
               <BossMEmptyState
                 icon={PackageX}
@@ -320,7 +321,7 @@ function KritikPageInner() {
                 description="Arama kriterini değiştirin."
               />
             ) : (
-              <div className="bg-card border border-border rounded-2xl overflow-hidden">
+              <div className="overflow-hidden rounded-2xl border border-border bg-card">
                 <div className="flex flex-col divide-y divide-border">
                   {filtered.map((item) => (
                     <KritikRow

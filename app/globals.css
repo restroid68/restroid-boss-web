@@ -138,7 +138,7 @@ body::-webkit-scrollbar { display: none; }
 
 /* Flutter bottom nav + home indicator — içerik / sabit çubuklar bunun üstünde */
 :root {
-  --boss-native-nav-inset: calc(5.25rem + env(safe-area-inset-bottom, 0px) + 0.75rem);
+  --boss-native-nav-inset: calc(5.75rem + env(safe-area-inset-bottom, 0px) + 1rem);
 }
 
 /* Soft keyboard open: shrink SPA bottom padding (Flutter nav hidden) */
@@ -167,6 +167,12 @@ html[data-keyboard='1'] {
   top: 0;
   bottom: var(--boss-native-nav-inset);
   z-index: 50;
+  overflow: hidden;
+}
+
+/* Sayfa içi scroller — h-full / nested overflow last satırı nav’ın üstünde bitsin */
+.boss-nested-scroll {
+  padding-bottom: var(--boss-native-nav-inset);
 }
 
 .boss-stack-enter {
