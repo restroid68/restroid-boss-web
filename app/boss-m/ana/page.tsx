@@ -1,11 +1,15 @@
 'use client'
 
 import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
-import { BossMChannelGrid } from '@/components/boss/ana/BossMChannelGrid'
-import { BossMDikkatList } from '@/components/boss/ana/BossMDikkatList'
-import { BossMOperasyonChipsRow } from '@/components/boss/ana/BossMOperasyonChips'
+import { BossMRevenueTrend } from '@/components/boss/ana/BossMRevenueTrend'
+import { BossMFinanceSnapshot } from '@/components/boss/ana/BossMFinanceSnapshot'
+import { BossMChannelShares } from '@/components/boss/ana/BossMChannelShares'
+import { BossMPlatforms } from '@/components/boss/ana/BossMPlatforms'
+import { BossMStaffCard } from '@/components/boss/ana/BossMStaffCard'
+import { BossMOpsAlerts } from '@/components/boss/ana/BossMOpsAlerts'
+import { BossMBranchCompare } from '@/components/boss/ana/BossMBranchCompare'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
-import { CHANNEL_CARDS } from '@/lib/boss-mock'
+import { ANA_KPIS } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { postToNative, readNativeSession } from '@/lib/boss-bridge'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -14,21 +18,30 @@ import { Store, ChevronDown } from 'lucide-react'
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
   branchLabel: '',
-  kpis: [
-    { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺' },
-    { label: 'Ödenen', value: '0', delta: 0, unit: '₺' },
-    { label: 'Açık', value: '0', delta: 0, unit: '₺' },
-    { label: 'Konuk', value: '0', delta: 0, unit: '' },
-  ],
-  channels: CHANNEL_CARDS.map((c) => ({ ...c, value: c.key === 'masa' ? '0' : '₺0' })),
+  kpis: ANA_KPIS.map((k) => ({ ...k })),
+  revenueTrend: [],
+  channelShares: [],
+  platforms: [],
+  finance: [],
+  staff: {
+    onDuty: 0,
+    total: 0,
+    dutyLabel: 'aktif kadro',
+    topPerformer: null,
+    topPerformerSales: null,
+    initials: [],
+  },
+  branches: [],
+  channels: [],
   alerts: [],
+  opsAlerts: [],
   operasyonBadges: {},
   source: 'mock',
 }
 
 export default function BossMDashboard() {
   const { data, loading } = useBossLoad(loadAnaDashboard, ANA_FALLBACK, {
-    cacheKey: 'page:ana',
+    cacheKey: 'page:ana:v2',
     ttlMs: 45_000,
   })
   const today = new Intl.DateTimeFormat('tr-TR', {
@@ -47,14 +60,13 @@ export default function BossMDashboard() {
   }
 
   const session = readNativeSession()
-  // Flutter app bar restoran adını gösterir — WebView içinde tekrar etme
   const nativeShell = Boolean(session?.token)
 
   return (
-    <main className="flex flex-col gap-4 bg-transparent pb-4">
-      <header className="px-4 pt-3 pb-1">
+    <main className="flex flex-col gap-3.5 bg-transparent pb-4">
+      <header className="px-4 pb-1 pt-3">
         {nativeShell ? (
-          <span className="text-xs text-muted-foreground capitalize">
+          <span className="text-xs capitalize text-muted-foreground">
             {today} &mdash; Bugün
             {data.source === 'mock' ? ' · örnek veri' : ''}
           </span>
@@ -65,20 +77,20 @@ export default function BossMDashboard() {
               onClick={() => postToNative({ type: 'switchRestaurant' })}
               className="flex items-center gap-2 text-left active:opacity-80"
             >
-              <Store size={15} className="text-primary shrink-0" />
+              <Store size={15} className="shrink-0 text-primary" />
               <span className="text-base font-bold text-foreground">
                 {data.restaurantName || session?.restaurantName || 'Restroid'}
               </span>
               {data.branchLabel.trim() ? (
-                <span className="px-2 py-0.5 bg-surface-2 border border-border rounded-full text-[10px] font-medium text-muted-foreground inline-flex items-center gap-0.5">
+                <span className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                   {data.branchLabel}
                   <ChevronDown size={10} />
                 </span>
               ) : (
-                <ChevronDown size={14} className="text-muted-foreground shrink-0" />
+                <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
               )}
             </button>
-            <span className="text-xs text-muted-foreground pl-0.5 capitalize">
+            <span className="pl-0.5 text-xs capitalize text-muted-foreground">
               {today} &mdash; Bugün
               {data.source === 'mock' ? ' · örnek veri' : ''}
             </span>
@@ -87,36 +99,13 @@ export default function BossMDashboard() {
       </header>
 
       <BossMKpiRow metrics={data.kpis} />
-
-      <div className="px-4 flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Kanallar
-        </span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
-      <BossMChannelGrid channels={data.channels} />
-
-      <div className="px-4 flex items-center gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Operasyon
-        </span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
-      <BossMOperasyonChipsRow badgeOverrides={data.operasyonBadges} />
-
-      {data.alerts.length > 0 && (
-        <>
-          <div className="px-4 flex items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Dikkat
-            </span>
-            <div className="flex-1 h-px bg-border" />
-          </div>
-          <BossMDikkatList alerts={data.alerts} />
-        </>
-      )}
+      <BossMRevenueTrend points={data.revenueTrend} />
+      <BossMFinanceSnapshot rows={data.finance} />
+      <BossMChannelShares channels={data.channelShares} />
+      <BossMPlatforms platforms={data.platforms} />
+      <BossMBranchCompare branches={data.branches} />
+      <BossMStaffCard staff={data.staff} />
+      <BossMOpsAlerts alerts={data.opsAlerts} />
     </main>
   )
 }

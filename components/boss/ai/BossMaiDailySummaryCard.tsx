@@ -2,6 +2,8 @@
 
 import { AlertTriangle, Star } from 'lucide-react'
 import { useBossLoad } from '@/hooks/use-boss-load'
+import { formatMoneyTR } from '@/lib/boss-api'
+import { ANA_KPIS } from '@/lib/boss-mock'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { BOSS_TTL } from '@/lib/boss-page-cache'
 import { cn } from '@/lib/utils'
@@ -9,9 +11,23 @@ import { cn } from '@/lib/utils'
 const EMPTY: AnaDashboardData = {
   restaurantName: '',
   branchLabel: '',
-  kpis: [],
+  kpis: ANA_KPIS.map((k) => ({ ...k, value: '—' })),
+  revenueTrend: [],
+  channelShares: [],
+  platforms: [],
+  finance: [],
+  staff: {
+    onDuty: 0,
+    total: 0,
+    dutyLabel: 'aktif kadro',
+    topPerformer: null,
+    topPerformerSales: null,
+    initials: [],
+  },
+  branches: [],
   channels: [],
   alerts: [],
+  opsAlerts: [],
   operasyonBadges: {},
   source: 'mock',
 }
@@ -27,7 +43,7 @@ function kpiValue(data: AnaDashboardData, labelPart: string): string {
 
 export function BossMaiDailySummaryCard() {
   const { data, loading } = useBossLoad(loadAnaDashboard, EMPTY, {
-    cacheKey: 'page:ana',
+    cacheKey: 'page:ana:v2',
     ttlMs: BOSS_TTL.kpi,
   })
 
@@ -37,11 +53,9 @@ export function BossMaiDailySummaryCard() {
   }).format(new Date())
 
   const ciro = kpiValue(data, 'ciro')
-  const openAmt = kpiValue(data, 'açık')
-  const critical = data.alerts.find((a) => a.type === 'kritik') ?? data.alerts[0]
-  const topChannel = data.channels.find(
-    (c) => c.key !== 'masa' && c.key !== 'iptal' && c.key !== 'zayi' && c.value !== '0',
-  )
+  const live = kpiValue(data, 'canlı')
+  const critical = data.opsAlerts[0] ?? null
+  const topChannel = data.channelShares.find((c) => c.active && c.amount > 0) ?? data.channelShares[0]
 
   if (loading && data.source === 'mock' && !data.kpis.length) {
     return (
@@ -80,9 +94,9 @@ export function BossMaiDailySummaryCard() {
             </p>
           </div>
           <div className="text-right">
-            <p className="mb-0.5 text-[11px] text-muted-foreground">Açık hesap</p>
+            <p className="mb-0.5 text-[11px] text-muted-foreground">Canlı sipariş</p>
             <p className="text-sm font-semibold tabular-nums text-muted-foreground">
-              {openAmt}
+              {live}
             </p>
           </div>
         </div>
@@ -94,7 +108,7 @@ export function BossMaiDailySummaryCard() {
           <div className="min-w-0">
             <p className="text-[10px] font-medium leading-tight text-danger">Dikkat</p>
             <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
-              {critical?.message ?? 'Uyarı yok'}
+              {critical?.title ?? 'Uyarı yok'}
             </p>
             <p className={cn('truncate text-[11px] text-muted-foreground')}>
               {critical?.detail ?? 'Bugün kritik kayıt yok'}
@@ -109,7 +123,7 @@ export function BossMaiDailySummaryCard() {
               {topChannel?.label ?? '—'}
             </p>
             <p className="text-[11px] text-muted-foreground tabular-nums">
-              {topChannel?.value ?? '—'}
+              {topChannel ? `₺${formatMoneyTR(topChannel.amount)}` : '—'}
             </p>
           </div>
         </div>

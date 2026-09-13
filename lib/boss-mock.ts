@@ -20,13 +20,16 @@ export interface KpiMetric {
   value: string
   delta: number   // % change vs yesterday (positive = up)
   unit?: string
+  description?: string
+  /** Canlı sayaç — yüzde değişimi gösterme */
+  neutral?: boolean
 }
 
 export const ANA_KPIS: KpiMetric[] = [
-  { label: 'Günlük Ciro',  value: '24.860', delta: +8.2,  unit: '₺' },
-  { label: 'Ödenen',       value: '19.340', delta: +5.7,  unit: '₺' },
-  { label: 'Açık',         value: '5.520',  delta: -2.1,  unit: '₺' },
-  { label: 'Konuk',        value: '187',    delta: +12.4, unit: '' },
+  { label: 'Günlük Ciro', value: '0', delta: 0, unit: '₺', description: 'Bugün' },
+  { label: 'Sipariş / Fiş', value: '0', delta: 0, unit: '', description: 'Bugün kapanan' },
+  { label: 'Ortalama Sepet', value: '0', delta: 0, unit: '₺', description: 'Fiş başına' },
+  { label: 'Canlı Sipariş', value: '0', delta: 0, unit: '', description: 'Şu an açık', neutral: true },
 ]
 
 export interface ChannelCard {

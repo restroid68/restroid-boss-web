@@ -9,7 +9,7 @@ import { useBossPullToRefresh } from '@/hooks/use-boss-pull-to-refresh'
 import { cn } from '@/lib/utils'
 
 const PULL_REFRESH_PATHS: Record<string, string> = {
-  '/boss-m/ana': 'page:ana',
+  '/boss-m/ana': 'page:ana:v2',
 }
 
 export default function BossScrollShell({ children }: { children: ReactNode }) {

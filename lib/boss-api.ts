@@ -143,4 +143,20 @@ export async function fetchSalesAnalysisTodayFull(): Promise<
   )
 }
 
+/** Son N gün satış analizi — raporlar sayfası ile aynı cache anahtarı. */
+export async function fetchSalesAnalysisDays(
+  days: number,
+): Promise<BossApiResult<Record<string, unknown>>> {
+  const n = Math.max(1, Math.min(31, Math.floor(days)))
+  return withBossCache(
+    `api:sales-analysis:full:${n}g`,
+    BOSS_TTL.kpi,
+    () =>
+      bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
+        query: { days: String(n), part: 'full' },
+      }),
+    { isCacheable: (r) => Boolean(r.ok && r.data) },
+  )
+}
+
 export { formatMoneyTR, parseMoneyTR } from '@/lib/boss-money'

@@ -13,12 +13,12 @@ function Bone({ className }: { className?: string }) {
 
 export function BossMSkeletonKpiRow() {
   return (
-    <div className="grid grid-cols-4 gap-2 px-4">
+    <div className="grid grid-cols-2 gap-2 px-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-card rounded-xl p-3 flex flex-col gap-2">
-          <Bone className="h-3 w-10" />
-          <Bone className="h-5 w-12" />
-          <Bone className="h-2.5 w-8" />
+        <div key={i} className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-3.5">
+          <Bone className="h-3 w-16" />
+          <Bone className="h-6 w-20" />
+          <Bone className="h-2.5 w-14" />
         </div>
       ))}
     </div>
