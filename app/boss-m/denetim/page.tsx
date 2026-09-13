@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { BossMEmptyState } from '@/components/boss/BossMEmptyState'
 import { BossMSkeletonList } from '@/components/boss/BossMSkeleton'
@@ -89,6 +89,14 @@ export default function BossMDenetimPage() {
     })
   }
 
+  const filterCounts = useMemo(() => {
+    const counts = new Map<AlertFilter, number>()
+    for (const alert of alerts) {
+      counts.set(alert.category, (counts.get(alert.category) ?? 0) + 1)
+    }
+    return counts
+  }, [alerts])
+
   if (loading) {
     return (
       <main className="flex flex-col gap-4 pb-4">
@@ -149,22 +157,42 @@ export default function BossMDenetimPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 px-4 overflow-x-auto pb-0.5">
-        {DENETIM_FILTERS.map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setActiveFilter(f)}
-            className={cn(
-              'px-3 py-2 rounded-xl border text-xs font-medium whitespace-nowrap transition-colors',
-              activeFilter === f
-                ? 'bg-primary/10 border-primary/40 text-primary'
-                : 'bg-card border-border text-muted-foreground',
-            )}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="px-4">
+        <div
+          role="tablist"
+          aria-label="Hareket türü"
+          className="grid grid-cols-4 gap-1.5 rounded-2xl border border-border bg-card/60 p-2"
+        >
+          {DENETIM_FILTERS.map((f) => {
+            const count = f === 'Tümü' ? alerts.length : (filterCounts.get(f) ?? 0)
+            const active = activeFilter === f
+            return (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveFilter(f)}
+                className={cn(
+                  'flex h-8 !min-h-8 !min-w-0 w-full items-center justify-center gap-0.5 rounded-full px-1 text-[11px] font-semibold tracking-tight transition-colors',
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-surface-2/80 text-muted-foreground active:bg-surface-3',
+                )}
+              >
+                <span className="truncate">{f}</span>
+                <span
+                  className={cn(
+                    'shrink-0 tabular-nums text-[10px] font-medium',
+                    active ? 'text-primary-foreground/75' : 'text-muted-foreground/70',
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
