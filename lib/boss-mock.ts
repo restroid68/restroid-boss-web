@@ -286,12 +286,11 @@ export interface ServiceChannel {
 }
 
 export const SERVICE_CHANNELS: ServiceChannel[] = [
-  { id: 'dinein',  label: 'Masa',     description: 'Restoran içi masa servisi',         enabled: true  },
-  { id: 'paket',   label: 'Paket',    description: 'Kapıda teslimat siparişleri',        enabled: true  },
-  { id: 'gelal',   label: 'Gel-al',   description: 'Müşterinin kendi teslim alması',     enabled: true  },
-  { id: 'self',    label: 'Self',     description: 'Self-servis kiosk siparişleri',      enabled: false },
-  { id: 'online',  label: 'Online',   description: 'Web ve uygulama üzerinden siparişler', enabled: true },
-  { id: 'qr',      label: 'QR',       description: 'Masa QR kodu ile sipariş',           enabled: true  },
+  { id: 'dinein', label: 'Masa', description: 'Restoran içi masa servisi', enabled: true },
+  { id: 'delivery', label: 'Paket', description: 'Kapıda teslimat siparişleri', enabled: true },
+  { id: 'takeaway', label: 'Gel-al', description: 'Müşterinin kendi teslim alması', enabled: true },
+  { id: 'online', label: 'Online', description: 'Web ve uygulama üzerinden siparişler', enabled: true },
+  { id: 'qr_menu', label: 'QR', description: 'Masa QR kodu ile sipariş', enabled: true },
 ]
 
 // ── Ürünler (/boss-m/urunler) ─────────────────────────────────────────────────

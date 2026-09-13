@@ -278,7 +278,7 @@ export async function loadProductEditorLookups(): Promise<BossProductEditorLooku
   for (const code of CHANNEL_ORDER) {
     if (!channelLabels[code]) channelLabels[code] = CHANNEL_FALLBACK_LABELS[code]
   }
-  const visibleChannelIds = CHANNEL_ORDER.filter((c) => enabled.has(c) || enabled.size === 0)
+  const visibleChannelIds = CHANNEL_ORDER.filter((c) => enabled.has(c))
 
   return {
     taxes,
@@ -288,7 +288,7 @@ export async function loadProductEditorLookups(): Promise<BossProductEditorLooku
     preferenceGroups,
     allergens,
     channelLabels,
-    visibleChannelIds: visibleChannelIds.length ? visibleChannelIds : [...CHANNEL_ORDER],
+    visibleChannelIds,
   }
 }
 

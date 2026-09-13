@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, Signal } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { SERVICE_CHANNELS } from '@/lib/boss-mock'
 import type { ServiceChannel } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadKanallarPage, patchServiceChannelEnabled } from '@/lib/boss-page-data'
@@ -58,12 +57,13 @@ function ChannelRow({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BossMKanallarPage() {
-  const { data } = useBossLoad(loadKanallarPage, {
-    channels: SERVICE_CHANNELS,
-    source: 'mock',
-  })
-  const [channels, setChannels] = useState<ServiceChannel[]>(SERVICE_CHANNELS)
-  const [baseline, setBaseline] = useState<ServiceChannel[]>(SERVICE_CHANNELS)
+  const { data } = useBossLoad(
+    loadKanallarPage,
+    { channels: [], source: 'mock' },
+    { cacheKey: 'page:kanallar:v3', persist: true },
+  )
+  const [channels, setChannels] = useState<ServiceChannel[]>([])
+  const [baseline, setBaseline] = useState<ServiceChannel[]>([])
   const [changed, setChanged]   = useState<Set<string>>(new Set())
 
   useEffect(() => {

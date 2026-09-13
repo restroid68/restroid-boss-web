@@ -248,12 +248,17 @@ function mapChannelShares(
     { key: 'self', label: 'Self Servis', codes: ['self'], amount: serviceAmt(breakdown, 4) },
   ]
   const total = defs.reduce((a, d) => a + d.amount, 0)
-  return defs.map((d) => {
-    const licensed = channelEnabled(enabledByCode, d.codes)
-    const active = licensed === null ? d.amount > 0 || ['dinein', 'online', 'delivery', 'takeaway'].includes(d.key) : licensed || d.amount > 0.0005
-    const share = total > 0.0005 ? Math.round((d.amount / total) * 100) : 0
-    return { key: d.key, label: d.label, amount: d.amount, share, active }
-  })
+  return defs
+    .map((d) => {
+      const licensed = channelEnabled(enabledByCode, d.codes)
+      const active =
+        licensed === null
+          ? d.amount > 0 || ['dinein', 'online', 'delivery', 'takeaway'].includes(d.key)
+          : licensed || d.amount > 0.0005
+      const share = total > 0.0005 ? Math.round((d.amount / total) * 100) : 0
+      return { key: d.key, label: d.label, amount: d.amount, share, active }
+    })
+    .filter((d) => d.active)
 }
 
 function isFoodPlatform(key: string, label: string): boolean {

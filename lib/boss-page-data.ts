@@ -389,6 +389,23 @@ const CHANNEL_META: Record<string, { label: string; description: string }> = {
   room: { label: 'Oda', description: 'Oda servisi siparişleri' },
 }
 
+/** Boss’ta gösterilmez: perakende tezgâh satışı restoran servis türü değildir. */
+const BOSS_HIDDEN_CHANNEL_CODES = new Set(['retail'])
+
+const CHANNEL_SORT_INDEX: Record<string, number> = {
+  dinein: 0,
+  dine_in: 0,
+  delivery: 1,
+  paket: 1,
+  takeaway: 2,
+  gelal: 2,
+  online: 3,
+  qr_menu: 4,
+  qr: 4,
+  self: 5,
+  room: 6,
+}
+
 export type KanallarPageData = {
   channels: ServiceChannel[]
   source: 'api' | 'mock'
@@ -396,7 +413,7 @@ export type KanallarPageData = {
 
 export async function loadKanallarPage(): Promise<KanallarPageData> {
   return withBossCache(
-    'page:kanallar:v2',
+    'page:kanallar:v3',
     BOSS_TTL.definitions,
     async () => {
       const session = readNativeSession()
@@ -411,26 +428,33 @@ export async function loadKanallarPage(): Promise<KanallarPageData> {
 
       if (!raw.length) return { channels: [], source: 'api' as const }
 
-      const channels: ServiceChannel[] = raw.map((r) => {
-        const row = asMap(r) ?? {}
-        const code = str(row.code ?? row.id).toLowerCase()
-        const meta = CHANNEL_META[code] ?? {
-          label: str(row.nameTr ?? row.name ?? row.label, code),
-          description: str(row.description, 'Servis kanalı'),
-        }
-        const label =
-          /^dine[\s_-]*in$/i.test(code) || /^dine[\s_-]*in$/i.test(meta.label) ? 'Masa' : meta.label
-        return {
-          id: code || str(row.id),
-          label,
-          description: meta.description,
-          enabled:
+      const channels: ServiceChannel[] = raw
+        .map((r) => {
+          const row = asMap(r) ?? {}
+          const code = str(row.code ?? row.id).toLowerCase()
+          if (!code || BOSS_HIDDEN_CHANNEL_CODES.has(code)) return null
+          const meta = CHANNEL_META[code]
+          if (!meta) return null
+          const enabled =
             row.isActive === true ||
             row.enabled === true ||
             row.isEnabled === true ||
-            row.active === true,
-        }
-      })
+            row.active === true
+          // Restoranda kapalı tür (Self / Oda vb.) Boss listesinde yok
+          if (!enabled) return null
+          const label =
+            /^dine[\s_-]*in$/i.test(code) || /^dine[\s_-]*in$/i.test(meta.label) ? 'Masa' : meta.label
+          return {
+            id: code,
+            label,
+            description: meta.description,
+            enabled: true,
+          }
+        })
+        .filter((c): c is ServiceChannel => c != null)
+        .sort(
+          (a, b) => (CHANNEL_SORT_INDEX[a.id] ?? 99) - (CHANNEL_SORT_INDEX[b.id] ?? 99),
+        )
 
       return { channels, source: 'api' as const }
     },
@@ -445,7 +469,7 @@ export async function patchServiceChannelEnabled(code: string, enabled: boolean)
     body: JSON.stringify({ isActive: enabled }),
   })
   if (res.ok) {
-    invalidateBossCache('page:kanallar:v2')
+    invalidateBossCache('page:kanallar')
     invalidateBossCache(CACHE_KEY_SISTEM_HUB)
     invalidateBossCache('fn:loadKanallarPage')
     invalidateBossCache('fn:loadSistemHub')
