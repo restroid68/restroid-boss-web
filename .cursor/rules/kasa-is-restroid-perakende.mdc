@@ -1,0 +1,10 @@
+---
+description: Canlı kasa = restroid-perakende. Java POS emekli — kasa işini restroid2026v2’ye yazma.
+alwaysApply: true
+---
+
+# Canlı kasa = restroid-perakende
+
+Kasa / Öde / Mobil POS / masa / PLU → **`C:\nextjs-projects\restroid-perakende`**.  
+Köprü (GMP3, TSM, yazıcı) → **`restroid-bridge`**.  
+JavaFX POS (`restroid2026v2`) **emekli** — yazma yok, yalnız okuma.
