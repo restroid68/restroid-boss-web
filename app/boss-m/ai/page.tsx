@@ -19,6 +19,7 @@ import { useBossAiFavorites } from '@/hooks/use-boss-ai-favorites'
 import { useBossKeyboard } from '@/hooks/use-boss-keyboard'
 import type { BossAiCommand } from '@/lib/boss-ai-commands'
 import { bossFetch, formatMoneyTR } from '@/lib/boss-api'
+import { stripBossAiMarkup } from '@/lib/boss-ai-plain-text'
 import { cn } from '@/lib/utils'
 import type {
   BossAiAskApiAnalysis,
@@ -311,7 +312,7 @@ export default function BossMaiPage() {
     const last = [...messagesRef.current].reverse().find((m) => m.role === 'assistant')
     if (!last?.text?.trim()) return
     void import('@/lib/boss-speak').then(({ speakBossAnswer }) => {
-      speakBossAnswer(last.text, voice)
+      speakBossAnswer(last.text, voice, { messageId: last.id })
     })
   }, [])
 
@@ -355,16 +356,18 @@ export default function BossMaiPage() {
   }, [messages, thinking, suggestions])
 
   const appendAssistant = useCallback((text: string, card?: ReactNode) => {
+    const id = nextId()
     setMessages((prev) => [
       ...prev,
       {
-        id: nextId(),
+        id,
         role: 'assistant',
         time: makeTime(),
         text,
         card,
       },
     ])
+    return id
   }, [])
 
   const handleConfirmProduct = useCallback(
@@ -453,6 +456,7 @@ export default function BossMaiPage() {
         })
 
         if (api.ok && api.answer) {
+          const answer = stripBossAiMarkup(api.answer)
           const draft = api.productDraft ?? null
           const bulk = api.bulkDraft ?? null
           if (draft) setPendingDraft(draft)
@@ -477,7 +481,7 @@ export default function BossMaiPage() {
             canUndoBulk && api.intent === 'product_bulk_undo' ? false : canUndoBulk,
             (label) => void handleSend(label),
           )
-          appendAssistant(api.answer, card)
+          const id = appendAssistant(answer, card)
           // Taslak onayı beklenirken öneri chip'i gösterme (onay/seçenek butonlarıyla çakışır)
           if (!draft && !bulk && api.suggestions?.length) {
             setSuggestions(api.suggestions.slice(0, 3))
@@ -485,8 +489,9 @@ export default function BossMaiPage() {
           if (ttsModeRef.current !== 'off') {
             const { speakBossAnswer } = await import('@/lib/boss-speak')
             speakBossAnswer(
-              api.answer,
+              answer,
               ttsModeRef.current === 'free' ? 'device' : 'cloud',
+              { messageId: id },
             )
           }
           return
@@ -536,6 +541,11 @@ export default function BossMaiPage() {
       offSession?.()
     }
   }, [handleSend])
+
+  const ttsVoice: 'device' | 'cloud' =
+    ttsMode === 'premium' || (ttsMode === 'off' && preferredVoice === 'premium')
+      ? 'cloud'
+      : 'device'
 
   return (
     <div
@@ -593,7 +603,7 @@ export default function BossMaiPage() {
 
         <div className="flex flex-col gap-4 px-4 pt-1 pb-2">
           {messages.map((msg) => (
-            <BossMaiChatBubble key={msg.id} message={msg} />
+            <BossMaiChatBubble key={msg.id} message={msg} ttsVoice={ttsVoice} />
           ))}
 
           {!thinking && suggestions.length > 0 && (

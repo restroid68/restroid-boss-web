@@ -2,9 +2,11 @@
  * RestroidBOSS hoparlör.
  * Ücretsiz: cihaz / Web Speech (token yok). Gelişmiş: Flutter → cloud TTS.
  */
+import { stripBossAiMarkup } from '@/lib/boss-ai-plain-text'
 import { getBossApiPrefix } from '@/lib/boss-config'
 import {
   hasNativeBossBridge,
+  onNativeSpeech,
   postToNative,
   readNativeSession,
 } from '@/lib/boss-bridge'
@@ -12,6 +14,57 @@ import {
 let speakGen = 0
 let resumeTimer: number | null = null
 let currentAudio: HTMLAudioElement | null = null
+let userPaused = false
+let nativeSpeechHooked = false
+
+export type BossSpeechStatus = 'idle' | 'loading' | 'playing' | 'paused'
+
+export type BossSpeechState = {
+  status: BossSpeechStatus
+  messageId: string | null
+}
+
+let speechState: BossSpeechState = { status: 'idle', messageId: null }
+const speechListeners = new Set<(s: BossSpeechState) => void>()
+
+function emitSpeech(next: Partial<BossSpeechState>) {
+  speechState = { ...speechState, ...next }
+  for (const l of speechListeners) {
+    try {
+      l(speechState)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function getBossSpeechState(): BossSpeechState {
+  return speechState
+}
+
+export function subscribeBossSpeech(listener: (s: BossSpeechState) => void): () => void {
+  speechListeners.add(listener)
+  listener(speechState)
+  return () => {
+    speechListeners.delete(listener)
+  }
+}
+
+function hookNativeSpeech() {
+  if (nativeSpeechHooked || typeof window === 'undefined') return
+  nativeSpeechHooked = true
+  onNativeSpeech((status) => {
+    if (status === 'playing' || status === 'loading') {
+      emitSpeech({ status: status === 'loading' ? 'loading' : 'playing' })
+      return
+    }
+    if (status === 'paused') {
+      emitSpeech({ status: 'paused' })
+      return
+    }
+    emitSpeech({ status: 'idle', messageId: null })
+  })
+}
 
 function clearResumeTimer() {
   if (resumeTimer != null) {
@@ -31,11 +84,7 @@ function stopWebAudio() {
   }
 }
 
-export function stopBossSpeech(): void {
-  speakGen += 1
-  clearResumeTimer()
-  stopWebAudio()
-  postToNative({ type: 'speakStop' })
+function cancelWebSpeech() {
   if (typeof window !== 'undefined' && window.speechSynthesis) {
     try {
       window.speechSynthesis.cancel()
@@ -43,6 +92,67 @@ export function stopBossSpeech(): void {
       /* ignore */
     }
   }
+}
+
+function beginLocalPlayback(messageId?: string) {
+  speakGen += 1
+  userPaused = false
+  clearResumeTimer()
+  stopWebAudio()
+  cancelWebSpeech()
+  emitSpeech({ status: 'loading', messageId: messageId ?? speechState.messageId })
+}
+
+export function stopBossSpeech(): void {
+  speakGen += 1
+  userPaused = false
+  clearResumeTimer()
+  stopWebAudio()
+  postToNative({ type: 'speakStop' })
+  cancelWebSpeech()
+  emitSpeech({ status: 'idle', messageId: null })
+}
+
+export function pauseBossSpeech(): void {
+  if (speechState.status !== 'playing' && speechState.status !== 'loading') return
+  userPaused = true
+  if (hasNativeBossBridge()) {
+    postToNative({ type: 'speakPause' })
+  }
+  try {
+    currentAudio?.pause()
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.pause()
+    } catch {
+      /* ignore */
+    }
+  }
+  emitSpeech({ status: 'paused' })
+}
+
+export function resumeBossSpeech(): void {
+  if (speechState.status !== 'paused') return
+  userPaused = false
+  if (hasNativeBossBridge()) {
+    postToNative({ type: 'speakResume' })
+  }
+  try {
+    void currentAudio?.play()
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try {
+      window.speechSynthesis.resume()
+    } catch {
+      /* ignore */
+    }
+  }
+  emitSpeech({ status: 'playing' })
 }
 
 /** Ücretsiz ses — tarayıcıda async speak için kullanıcı jestinde kilidi aç. Native kabukta gerekmez. */
@@ -147,6 +257,7 @@ function speakUtterance(
     u.onstart = () => {
       started = true
       if (timer != null) window.clearTimeout(timer)
+      if (gen === speakGen && !userPaused) emitSpeech({ status: 'playing' })
     }
     u.onend = () => finish(started ? 'ok' : 'silent')
     u.onerror = () => finish(started ? 'ok' : 'silent')
@@ -160,14 +271,16 @@ function speakUtterance(
 }
 
 async function speakWithWebSpeech(text: string): Promise<'ok' | 'silent' | 'aborted'> {
-  const gen = ++speakGen
+  const gen = speakGen
   await whenVoicesReady()
   if (gen !== speakGen) return 'aborted'
   const voice = pickTurkishVoice()
-  const chunks = splitSpeakChunks(text, 240)
+  // Chrome ~15 sn sonra duraklatır; kısa cümle parçaları + resume.
+  const chunks = splitSpeakChunks(text, 180)
   if (!chunks.length) return 'silent'
   clearResumeTimer()
   resumeTimer = window.setInterval(() => {
+    if (userPaused) return
     try {
       window.speechSynthesis.resume()
     } catch {
@@ -175,7 +288,7 @@ async function speakWithWebSpeech(text: string): Promise<'ok' | 'silent' | 'abor
     }
   }, 4000)
   try {
-    const first = await speakUtterance(chunks[0]!, voice, gen, 1600)
+    const first = await speakUtterance(chunks[0]!, voice, gen, 2800)
     if (gen !== speakGen) return 'aborted'
     if (first === 'aborted') return 'aborted'
     if (first !== 'ok') {
@@ -188,17 +301,24 @@ async function speakWithWebSpeech(text: string): Promise<'ok' | 'silent' | 'abor
     }
     for (const chunk of chunks.slice(1)) {
       if (gen !== speakGen) return 'aborted'
+      while (userPaused && gen === speakGen) {
+        await new Promise((r) => window.setTimeout(r, 180))
+      }
+      if (gen !== speakGen) return 'aborted'
       const next = await speakUtterance(chunk, voice, gen)
       if (next === 'aborted') return 'aborted'
     }
     return gen === speakGen ? 'ok' : 'aborted'
   } finally {
     if (gen === speakGen) clearResumeTimer()
+    if (gen === speakGen && speechState.status !== 'paused') {
+      emitSpeech({ status: 'idle', messageId: null })
+    }
   }
 }
 
 async function speakCloudInBrowser(text: string): Promise<void> {
-  const gen = ++speakGen
+  const gen = speakGen
   const prefix = getBossApiPrefix()
   const session = readNativeSession()
   const headers: Record<string, string> = {
@@ -211,7 +331,7 @@ async function speakCloudInBrowser(text: string): Promise<void> {
   if (session?.branchCode) headers['x-restroid-branch-code'] = session.branchCode
 
   const controller = new AbortController()
-  const timer = window.setTimeout(() => controller.abort(), 90_000)
+  const timer = window.setTimeout(() => controller.abort(), 150_000)
   try {
     const res = await fetch(`${prefix}/api/boss/ai/speak`, {
       method: 'POST',
@@ -221,7 +341,10 @@ async function speakCloudInBrowser(text: string): Promise<void> {
       signal: controller.signal,
     })
     if (gen !== speakGen) return
-    if (res.status === 204 || !res.ok) return
+    if (res.status === 204 || !res.ok) {
+      emitSpeech({ status: 'idle', messageId: null })
+      return
+    }
     const blob = await res.blob()
     if (gen !== speakGen || blob.size < 64) return
     const url = URL.createObjectURL(blob)
@@ -230,19 +353,31 @@ async function speakCloudInBrowser(text: string): Promise<void> {
     audio.onended = () => {
       URL.revokeObjectURL(url)
       if (currentAudio === audio) currentAudio = null
+      if (gen === speakGen) emitSpeech({ status: 'idle', messageId: null })
+    }
+    audio.onerror = () => {
+      URL.revokeObjectURL(url)
+      if (currentAudio === audio) currentAudio = null
+      if (gen === speakGen) emitSpeech({ status: 'idle', messageId: null })
     }
     await audio.play()
+    if (gen === speakGen && !userPaused) emitSpeech({ status: 'playing' })
   } catch {
-    /* tarayıcı önizleme — sessiz */
+    if (gen === speakGen) emitSpeech({ status: 'idle', messageId: null })
   } finally {
     window.clearTimeout(timer)
   }
 }
 
-export function speakBossAnswer(text: string, voice: 'device' | 'cloud'): void {
-  const cleaned = text.trim()
+export function speakBossAnswer(
+  text: string,
+  voice: 'device' | 'cloud',
+  opts?: { messageId?: string },
+): void {
+  const cleaned = stripBossAiMarkup(text).trim()
   if (!cleaned) return
-  stopBossSpeech()
+  hookNativeSpeech()
+  beginLocalPlayback(opts?.messageId)
   if (voice === 'cloud') {
     if (hasNativeBossBridge()) {
       postToNative({ type: 'speak', text: cleaned, voice: 'cloud' })
@@ -252,7 +387,6 @@ export function speakBossAnswer(text: string, voice: 'device' | 'cloud'): void {
     return
   }
 
-  // Ücretsiz: Flutter cihaz TTS (Yelda / Android). Tarayıcı önizlemede Web Speech.
   if (hasNativeBossBridge()) {
     postToNative({ type: 'speak', text: cleaned, voice: 'device' })
     return

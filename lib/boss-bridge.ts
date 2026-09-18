@@ -21,9 +21,13 @@ export type BossNativeSession = {
   themeAccent?: string
 }
 
+export type BossSpeechNativeStatus = 'loading' | 'playing' | 'paused' | 'ended' | 'error'
+
 export type BossToNativeMessage =
   | { type: 'openMic' }
   | { type: 'speak'; text: string; voice?: 'device' | 'cloud' }
+  | { type: 'speakPause' }
+  | { type: 'speakResume' }
   | { type: 'speakStop' }
   | { type: 'switchRestaurant' }
   | { type: 'openDrawer' }
@@ -49,11 +53,13 @@ type TranscriptHandler = (text: string) => void
 type SessionHandler = (session: BossNativeSession) => void
 type CacheClearHandler = () => void
 type NotificationsHandler = (enabled: boolean) => void
+type SpeechHandler = (status: BossSpeechNativeStatus) => void
 
 const transcriptHandlers = new Set<TranscriptHandler>()
 const sessionHandlers = new Set<SessionHandler>()
 const cacheClearHandlers = new Set<CacheClearHandler>()
 const notificationsHandlers = new Set<NotificationsHandler>()
+const speechHandlers = new Set<SpeechHandler>()
 
 declare global {
   interface Window {
@@ -67,6 +73,7 @@ declare global {
     __RESTROID_BOSS_ON_SESSION__?: SessionHandler
     __RESTROID_BOSS_ON_CACHE_CLEAR__?: CacheClearHandler
     __RESTROID_BOSS_ON_NOTIFICATIONS__?: NotificationsHandler
+    __RESTROID_BOSS_ON_SPEECH__?: SpeechHandler
   }
 }
 
@@ -104,6 +111,15 @@ function installGlobalFanout() {
     for (const h of notificationsHandlers) {
       try {
         h(enabled)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  window.__RESTROID_BOSS_ON_SPEECH__ = (status: BossSpeechNativeStatus) => {
+    for (const h of speechHandlers) {
+      try {
+        h(status)
       } catch {
         /* ignore */
       }
@@ -184,6 +200,21 @@ export function setBossNotificationsEnabled(enabled: boolean): void {
 
 export function requestBossNotificationsEnabled(): void {
   postToNative({ type: 'getNotificationsEnabled' })
+}
+
+/** Flutter hoparlör durumu — playing / paused / ended */
+export function onNativeSpeech(handler: SpeechHandler): () => void {
+  if (typeof window === 'undefined') return () => {}
+  installGlobalFanout()
+  speechHandlers.add(handler)
+  return () => {
+    speechHandlers.delete(handler)
+  }
+}
+
+export function dispatchNativeSpeech(status: BossSpeechNativeStatus): void {
+  installGlobalFanout()
+  window.__RESTROID_BOSS_ON_SPEECH__?.(status)
 }
 
 export function dispatchNativeCacheClear(): void {
