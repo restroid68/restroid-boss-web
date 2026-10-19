@@ -226,6 +226,14 @@ function whenVoicesReady(): Promise<void> {
   })
 }
 
+function resumeWebSpeech() {
+  try {
+    window.speechSynthesis.resume()
+  } catch {
+    /* ignore */
+  }
+}
+
 function speakUtterance(
   text: string,
   voice: SpeechSynthesisVoice | undefined,
@@ -261,12 +269,22 @@ function speakUtterance(
     }
     u.onend = () => finish(started ? 'ok' : 'silent')
     u.onerror = () => finish(started ? 'ok' : 'silent')
-    try {
-      window.speechSynthesis.speak(u)
-    } catch {
-      if (timer != null) window.clearTimeout(timer)
-      finish('silent')
-    }
+    // Chrome, cancel() hemen ardından speak()'i düşürür; resume + kısa gecikme şart.
+    resumeWebSpeech()
+    window.setTimeout(() => {
+      if (gen !== speakGen) {
+        if (timer != null) window.clearTimeout(timer)
+        finish('aborted')
+        return
+      }
+      try {
+        resumeWebSpeech()
+        window.speechSynthesis.speak(u)
+      } catch {
+        if (timer != null) window.clearTimeout(timer)
+        finish('silent')
+      }
+    }, 60)
   })
 }
 
@@ -288,7 +306,7 @@ async function speakWithWebSpeech(text: string): Promise<'ok' | 'silent' | 'abor
     }
   }, 4000)
   try {
-    const first = await speakUtterance(chunks[0]!, voice, gen, 2800)
+    let first = await speakUtterance(chunks[0]!, voice, gen, 2800)
     if (gen !== speakGen) return 'aborted'
     if (first === 'aborted') return 'aborted'
     if (first !== 'ok') {
@@ -297,7 +315,10 @@ async function speakWithWebSpeech(text: string): Promise<'ok' | 'silent' | 'abor
       } catch {
         /* ignore */
       }
-      return 'silent'
+      resumeWebSpeech()
+      first = await speakUtterance(chunks[0]!, undefined, gen, 3500)
+      if (gen !== speakGen) return 'aborted'
+      if (first !== 'ok') return first
     }
     for (const chunk of chunks.slice(1)) {
       if (gen !== speakGen) return 'aborted'
@@ -342,11 +363,15 @@ async function speakCloudInBrowser(text: string): Promise<void> {
     })
     if (gen !== speakGen) return
     if (res.status === 204 || !res.ok) {
-      emitSpeech({ status: 'idle', messageId: null })
+      await speakWithWebSpeech(text)
       return
     }
     const blob = await res.blob()
-    if (gen !== speakGen || blob.size < 64) return
+    if (gen !== speakGen) return
+    if (blob.size < 64) {
+      await speakWithWebSpeech(text)
+      return
+    }
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
     currentAudio = audio
@@ -363,7 +388,7 @@ async function speakCloudInBrowser(text: string): Promise<void> {
     await audio.play()
     if (gen === speakGen && !userPaused) emitSpeech({ status: 'playing' })
   } catch {
-    if (gen === speakGen) emitSpeech({ status: 'idle', messageId: null })
+    if (gen === speakGen) await speakWithWebSpeech(text)
   } finally {
     window.clearTimeout(timer)
   }
