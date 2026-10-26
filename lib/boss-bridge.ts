@@ -15,6 +15,8 @@ export type BossNativeSession = {
   /** UI dili: tr | en (Flutter cihaz / panel dili) */
   locale?: string
   apiEnv?: string
+  /** ios | android — Flutter kabuğu */
+  platform?: string
   /** Cihazda saklanan görünüm (yazı boyutu + tema) */
   appearance?: { fontScale?: string; themeAccent?: string }
   fontScale?: string
@@ -34,6 +36,8 @@ export type BossToNativeMessage =
   | { type: 'openMenu' }
   | { type: 'logout' }
   | { type: 'openExternal'; url: string }
+  | { type: 'queryIap'; productIds: string[] }
+  | { type: 'purchaseIap'; productId: string }
   | { type: 'navigate'; path: string }
   /** SPA soft path sync → Flutter sekme / geri durumu */
   | { type: 'path'; path: string }
@@ -55,11 +59,19 @@ type CacheClearHandler = () => void
 type NotificationsHandler = (enabled: boolean) => void
 type SpeechHandler = (status: BossSpeechNativeStatus) => void
 
+export type BossIapNativeEvent =
+  | { type: 'products'; products: Array<{ productId: string; price: string }> }
+  | { type: 'pending'; productId?: string }
+  | { type: 'result'; ok: boolean; cancelled?: boolean; productId?: string; error?: string; balanceTokens?: number }
+
+type IapHandler = (event: BossIapNativeEvent) => void
+
 const transcriptHandlers = new Set<TranscriptHandler>()
 const sessionHandlers = new Set<SessionHandler>()
 const cacheClearHandlers = new Set<CacheClearHandler>()
 const notificationsHandlers = new Set<NotificationsHandler>()
 const speechHandlers = new Set<SpeechHandler>()
+const iapHandlers = new Set<IapHandler>()
 
 declare global {
   interface Window {
@@ -74,6 +86,7 @@ declare global {
     __RESTROID_BOSS_ON_CACHE_CLEAR__?: CacheClearHandler
     __RESTROID_BOSS_ON_NOTIFICATIONS__?: NotificationsHandler
     __RESTROID_BOSS_ON_SPEECH__?: SpeechHandler
+    __RESTROID_BOSS_ON_IAP__?: IapHandler
   }
 }
 
@@ -120,6 +133,15 @@ function installGlobalFanout() {
     for (const h of speechHandlers) {
       try {
         h(status)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  window.__RESTROID_BOSS_ON_IAP__ = (event: BossIapNativeEvent) => {
+    for (const h of iapHandlers) {
+      try {
+        h(event)
       } catch {
         /* ignore */
       }
@@ -210,6 +232,20 @@ export function onNativeSpeech(handler: SpeechHandler): () => void {
   return () => {
     speechHandlers.delete(handler)
   }
+}
+
+export function onNativeIap(handler: IapHandler): () => void {
+  if (typeof window === 'undefined') return () => {}
+  installGlobalFanout()
+  iapHandlers.add(handler)
+  return () => {
+    iapHandlers.delete(handler)
+  }
+}
+
+export function isNativeIosBoss(): boolean {
+  const session = readNativeSession()
+  return session?.platform === 'ios' && hasNativeBossBridge()
 }
 
 export function dispatchNativeSpeech(status: BossSpeechNativeStatus): void {

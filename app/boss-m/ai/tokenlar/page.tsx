@@ -4,16 +4,22 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Coins, RefreshCw, ShoppingCart, Sparkles, Wallet } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
 import { bossFetch, formatMoneyTR } from '@/lib/boss-api'
-import { postToNative, readNativeSession } from '@/lib/boss-bridge'
+import { isNativeIosBoss, onNativeIap, onNativeSession, postToNative } from '@/lib/boss-bridge'
 import { cn } from '@/lib/utils'
 
-type TokenPackage = { millions: number; tokens: number; priceTry: number }
+type TokenPackage = {
+  millions: number
+  tokens: number
+  priceTry: number
+  appleProductId?: string
+}
 
 type SummaryData = {
   balanceTokens: number
   purchaseAvailable: boolean
   pricePerMillionTokensTry: number
   packages: TokenPackage[]
+  applePackages?: TokenPackage[]
   recentOrders: Array<{
     id: string
     status: string
@@ -49,6 +55,8 @@ export default function BossMaiTokenlarPage() {
   const [error, setError] = useState<string | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   const [busyPackage, setBusyPackage] = useState<number | null>(null)
+  const [iosNative, setIosNative] = useState(false)
+  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const lastFetchAt = useRef(0)
 
   const load = useCallback(async (force = false) => {
@@ -74,10 +82,66 @@ export default function BossMaiTokenlarPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
 
+  useEffect(() => {
+    const sync = () => setIosNative(isNativeIosBoss())
+    sync()
+    return onNativeSession(() => sync())
+  }, [])
+
+  useEffect(() => {
+    return onNativeIap((event) => {
+      if (event.type === 'products') {
+        const next: Record<string, string> = {}
+        for (const p of event.products) {
+          if (p.productId && p.price) next[p.productId] = p.price
+        }
+        setStorePrices(next)
+        return
+      }
+      if (event.type === 'pending') {
+        setFlash('App Store ödemesi bekleniyor.')
+        return
+      }
+      if (event.type === 'result') {
+        setBusyPackage(null)
+        if (event.ok) {
+          setError(null)
+          setFlash('Satın alma tamamlandı. Token bakiyesi güncellendi.')
+          void load(true)
+        } else if (!event.cancelled) {
+          setFlash(null)
+          setError(event.error || 'App Store satın alması tamamlanamadı.')
+        } else {
+          setFlash(null)
+        }
+      }
+    })
+  }, [load])
+
+  const storePackages = iosNative ? (data?.applePackages ?? data?.packages ?? []) : (data?.packages ?? [])
+
+  useEffect(() => {
+    if (!iosNative || !data) return
+    const ids = (data.applePackages ?? data.packages)
+      .map((p) => p.appleProductId)
+      .filter((id): id is string => Boolean(id))
+    if (ids.length === 0) return
+    postToNative({ type: 'queryIap', productIds: ids })
+  }, [iosNative, data])
+
   async function buyPackage(pkg: TokenPackage) {
     setBusyPackage(pkg.millions)
     setFlash(null)
     setError(null)
+    if (iosNative) {
+      if (!pkg.appleProductId) {
+        setBusyPackage(null)
+        setError('App Store ürünü tanımlı değil.')
+        return
+      }
+      postToNative({ type: 'purchaseIap', productId: pkg.appleProductId })
+      return
+    }
     try {
       const res = await bossFetch<{ payUrl?: string }>('/api/ai-tokens/purchase', {
         method: 'POST',
@@ -88,11 +152,7 @@ export default function BossMaiTokenlarPage() {
         setError(res.error || 'Ödeme başlatılamadı.')
         return
       }
-      if (readNativeSession()) {
-        postToNative({ type: 'openExternal', url: payUrl })
-      } else {
-        window.open(payUrl, '_blank', 'noopener')
-      }
+      window.open(payUrl, '_blank', 'noopener')
       setFlash('Ödeme sayfası açıldı. Ödeme sonrası bakiyeniz otomatik güncellenir.')
     } finally {
       setBusyPackage(null)
@@ -174,11 +234,16 @@ export default function BossMaiTokenlarPage() {
               <Coins size={14} className="text-primary" />
               <p className="text-sm font-semibold text-foreground">Token paketleri</p>
             </div>
-            {!data?.purchaseAvailable ? (
+            {storePackages.length === 0 ? (
               <p className="text-xs text-muted-foreground mb-4">Token satın alma şu anda kapalı.</p>
             ) : (
               <div className="flex flex-col gap-2 mb-6">
-                {data.packages.map((pkg) => (
+                {storePackages.map((pkg) => {
+                  const storePrice = pkg.appleProductId ? storePrices[pkg.appleProductId] : undefined
+                  const priceLabel = iosNative
+                    ? (storePrice ?? 'App Store')
+                    : `${formatMoneyTR(pkg.priceTry)} TL`
+                  return (
                   <div
                     key={pkg.millions}
                     className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
@@ -191,7 +256,7 @@ export default function BossMaiTokenlarPage() {
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <span className="text-sm font-semibold text-foreground tabular-nums">
-                        {formatMoneyTR(pkg.priceTry)} TL
+                        {priceLabel}
                       </span>
                       <button
                         type="button"
@@ -204,7 +269,8 @@ export default function BossMaiTokenlarPage() {
                       </button>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
 
@@ -229,7 +295,7 @@ export default function BossMaiTokenlarPage() {
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-sm font-semibold text-foreground tabular-nums">
-                          {formatMoneyTR(o.chargeAmountTry)} TL
+                          {o.source === 'apple_iap' ? 'App Store' : `${formatMoneyTR(o.chargeAmountTry)} TL`}
                         </span>
                         <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', st.cls)}>
                           {st.label}
