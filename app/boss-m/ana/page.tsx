@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
+import { BossMOwnerBrief } from '@/components/boss/ana/BossMOwnerBrief'
 import { BossMRevenueTrend } from '@/components/boss/ana/BossMRevenueTrend'
 import { BossMFinanceSnapshot } from '@/components/boss/ana/BossMFinanceSnapshot'
 import { BossMChannelShares } from '@/components/boss/ana/BossMChannelShares'
@@ -21,6 +22,25 @@ import { Store, ChevronDown } from 'lucide-react'
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
   branchLabel: '',
+  ownerBrief: {
+    dayLabel: 'Bugün',
+    periodLabel: 'Son 7 gün',
+    closed: '₺0',
+    openOrders: '₺0',
+    collected: '₺0',
+    collectRate: '—',
+    perGuest: '—',
+    dayLoss: [
+      { label: 'İptal', value: '₺0', tone: 'neutral' },
+      { label: 'İkram', value: '₺0', tone: 'neutral' },
+      { label: 'Zayi', value: '₺0', tone: 'neutral' },
+    ],
+    periodNet: '₺0',
+    periodExpense: '₺0',
+    periodLoss: '₺0',
+    busyDays: '0 gün satış',
+    note: null,
+  },
   kpis: ANA_KPIS.map((k) => ({ ...k })),
   revenueTrend: [],
   channelShares: [],
@@ -46,7 +66,7 @@ export default function BossMDashboard() {
   const { day } = useBossSelectedDay()
   const load = useCallback(() => loadAnaDashboard(day), [day])
   const { data, loading } = useBossLoad(load, ANA_FALLBACK, {
-    cacheKey: `page:ana:v4:${day}`,
+    cacheKey: `page:ana:v5:${day}`,
     ttlMs: 45_000,
   })
 
@@ -106,6 +126,7 @@ export default function BossMDashboard() {
         )}
       </header>
 
+      <BossMOwnerBrief brief={data.ownerBrief} />
       <BossMKpiRow metrics={data.kpis} />
       <BossMRevenueTrend points={data.revenueTrend} />
       <BossMFinanceSnapshot rows={data.finance} day={day} />

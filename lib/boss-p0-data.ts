@@ -100,9 +100,32 @@ export type AnaOpsAlert = {
   href?: string
 }
 
+export type AnaOwnerChip = {
+  label: string
+  value: string
+  tone: 'neutral' | 'good' | 'warn' | 'bad'
+}
+
+export type AnaOwnerBrief = {
+  dayLabel: string
+  periodLabel: string
+  closed: string
+  openOrders: string
+  collected: string
+  collectRate: string
+  perGuest: string
+  dayLoss: AnaOwnerChip[]
+  periodNet: string
+  periodExpense: string
+  periodLoss: string
+  busyDays: string
+  note: string | null
+}
+
 export type AnaDashboardData = {
   restaurantName: string
   branchLabel: string
+  ownerBrief: AnaOwnerBrief
   kpis: KpiMetric[]
   revenueTrend: AnaRevenuePoint[]
   channelShares: AnaChannelShare[]
@@ -388,11 +411,76 @@ function emptyStaff(): AnaStaffSummary {
   }
 }
 
+function moneyLabel(n: number): string {
+  return `₺${formatMoneyTR(n)}`
+}
+
+function lossAmount(
+  daySummary: Record<string, unknown> | null,
+  summary: Record<string, unknown>,
+  rowKey: string,
+  summaryKeys: string[],
+): number {
+  const row = asMap(asMap(daySummary?.lossRows)?.[rowKey])
+  const fromRow = Math.abs(num(row?.amount))
+  if (fromRow > 0.0005) return fromRow
+  for (const key of summaryKeys) {
+    const v = Math.abs(num(summary[key]))
+    if (v > 0.0005) return v
+  }
+  return 0
+}
+
+function ownerNumbers(data: Record<string, unknown> | null) {
+  const summary = asMap(data?.summary) ?? {}
+  const daySummary = asMap(data?.daySummary)
+  const openOrders = Math.max(0, num(summary.openOrdersTotal ?? summary.openAccount ?? summary.openAmount))
+  const closed = Math.max(
+    0,
+    num((summary as { closedNetSales?: unknown }).closedNetSales) ||
+      Math.max(0, num(summary.netSales) - openOrders),
+  )
+  const collected = Math.max(0, num(summary.paymentsReceived ?? summary.paidAmount))
+  const guests = Math.max(0, num(summary.guestCount ?? summary.guests))
+  const expenses = Math.abs(num(summary.expenses))
+  const cancel = lossAmount(daySummary, summary, 'cancellations', ['cancellations', 'cancellationAmount'])
+  const treat = lossAmount(daySummary, summary, 'complimentary', ['complimentary', 'ikram', 'treats'])
+  const waste = lossAmount(daySummary, summary, 'waste', ['waste', 'wasteAmount'])
+  const base = closed + openOrders
+  const rate = base > 0.0005 ? Math.round((collected / base) * 1000) / 10 : 0
+  const perGuest = guests > 0 ? closed / guests : 0
+  return { closed, openOrders, collected, guests, expenses, cancel, treat, waste, rate, perGuest }
+}
+
+function emptyOwnerBrief(): AnaOwnerBrief {
+  const zero = '₺0'
+  return {
+    dayLabel: 'Bugün',
+    periodLabel: 'Son 7 gün',
+    closed: zero,
+    openOrders: zero,
+    collected: zero,
+    collectRate: '—',
+    perGuest: '—',
+    dayLoss: [
+      { label: 'İptal', value: zero, tone: 'neutral' },
+      { label: 'İkram', value: zero, tone: 'neutral' },
+      { label: 'Zayi', value: zero, tone: 'neutral' },
+    ],
+    periodNet: zero,
+    periodExpense: zero,
+    periodLoss: zero,
+    busyDays: '0 gün',
+    note: null,
+  }
+}
+
 function emptyAna(session: BossNativeSession | null, source: 'api' | 'mock'): AnaDashboardData {
   const channelShares = mapChannelShares([], new Map())
   return {
     restaurantName: session?.restaurantName || 'Restroid',
     branchLabel: bossBranchDisplayLabel(session?.branchCode),
+    ownerBrief: emptyOwnerBrief(),
     kpis: ANA_KPIS.map((k) => ({ ...k })),
     revenueTrend: [],
     channelShares,
@@ -680,8 +768,40 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
         .map(nameInitials),
     }
 
-    const wasteAmt = num(summary.waste ?? summary.wasteAmount)
-    const cancelAmt = num(summary.cancellations)
+    const dayNums = ownerNumbers(d)
+    const periodNums = ownerNumbers(week.ok ? week.data : null)
+    const busyDays = trend.filter((point) => point.ciro > 1).length
+    const lossTone = (amount: number, closedNet: number): AnaOwnerChip['tone'] => {
+      if (amount <= 0.009) return 'neutral'
+      if (closedNet > 0.009 && amount > closedNet) return 'bad'
+      return 'warn'
+    }
+    const ownerBrief: AnaOwnerBrief = {
+      dayLabel: isToday ? 'Bugün' : dayChip,
+      periodLabel: 'Son 7 gün',
+      closed: moneyLabel(dayNums.closed),
+      openOrders: moneyLabel(dayNums.openOrders),
+      collected: moneyLabel(dayNums.collected),
+      collectRate: dayNums.rate > 0 ? `%${formatMoneyTR(dayNums.rate, 1)}` : '—',
+      perGuest: dayNums.perGuest > 0 ? moneyLabel(dayNums.perGuest) : '—',
+      dayLoss: [
+        { label: 'İptal', value: moneyLabel(dayNums.cancel), tone: lossTone(dayNums.cancel, dayNums.closed) },
+        { label: 'İkram', value: moneyLabel(dayNums.treat), tone: lossTone(dayNums.treat, dayNums.closed) },
+        { label: 'Zayi', value: moneyLabel(dayNums.waste), tone: lossTone(dayNums.waste, dayNums.closed) },
+      ],
+      periodNet: moneyLabel(periodNums.closed || trend.reduce((sum, point) => sum + point.ciro, 0)),
+      periodExpense: moneyLabel(periodNums.expenses),
+      periodLoss: moneyLabel(periodNums.cancel + periodNums.treat + periodNums.waste),
+      busyDays: `${busyDays} gün satış`,
+      note:
+        dayNums.openOrders > 0.009
+          ? `Açık hesapta ${moneyLabel(dayNums.openOrders)} tahsilat bekliyor.`
+          : dayNums.cancel > dayNums.closed + 0.009 && dayNums.cancel > 0.009
+            ? 'İptal tutarı kapanan hesaptan yüksek. Satışları kontrol edin.'
+            : null,
+    }
+    const wasteAmt = dayNums.waste
+    const cancelAmt = dayNums.cancel
     const kpis: KpiMetric[] = [
       {
         label: 'Günlük Ciro',
@@ -771,6 +891,7 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
 
     return {
       ...base,
+      ownerBrief,
       kpis,
       revenueTrend: trend,
       channelShares,
