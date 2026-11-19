@@ -5,14 +5,17 @@ import { AlertTriangle, Star } from 'lucide-react'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { formatMoneyTR } from '@/lib/boss-api'
 import { ANA_KPIS } from '@/lib/boss-mock'
-import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
+import { emptyAnaDayDigest } from '@/lib/boss-day-digest'
+import { emptyOwnerBrief, loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { BOSS_TTL } from '@/lib/boss-page-cache'
-import { istanbulYmd } from '@/lib/boss-wall-clock'
+import { bossTodayYmd } from '@/lib/boss-wall-clock'
 import { cn } from '@/lib/utils'
 
 const EMPTY: AnaDashboardData = {
   restaurantName: '',
   branchLabel: '',
+  dayDigest: emptyAnaDayDigest(),
+  ownerBrief: emptyOwnerBrief(),
   kpis: ANA_KPIS.map((k) => ({ ...k, value: '—' })),
   revenueTrend: [],
   channelShares: [],
@@ -44,7 +47,7 @@ function kpiValue(data: AnaDashboardData, labelPart: string): string {
 }
 
 export function BossMaiDailySummaryCard() {
-  const todayKey = istanbulYmd()
+  const todayKey = bossTodayYmd()
   const load = useCallback(() => loadAnaDashboard(todayKey), [todayKey])
   const { data, loading } = useBossLoad(load, EMPTY, {
     cacheKey: `page:ana:v4:${todayKey}`,

@@ -5,15 +5,16 @@ import {
   clampBossDay,
   formatBossDayChip,
   formatBossDayLong,
-  istanbulYmd,
+  bossTodayYmd,
   isBossYmd,
+  onBossBusinessDayChange,
 } from '@/lib/boss-wall-clock'
 
 const STORAGE_KEY = 'boss-selected-day'
 const listeners = new Set<() => void>()
 
 function readStoredDay(): string {
-  const today = istanbulYmd()
+  const today = bossTodayYmd()
   if (typeof sessionStorage === 'undefined') return today
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
@@ -27,7 +28,7 @@ function readStoredDay(): string {
 function writeStoredDay(ymd: string): void {
   if (typeof sessionStorage === 'undefined') return
   try {
-    const today = istanbulYmd()
+    const today = bossTodayYmd()
     const next = clampBossDay(ymd, today)
     if (next === today) sessionStorage.removeItem(STORAGE_KEY)
     else sessionStorage.setItem(STORAGE_KEY, next)
@@ -46,15 +47,18 @@ export function setBossSelectedDay(ymd: string): void {
 }
 
 export function useBossSelectedDay() {
-  const today = istanbulYmd()
+  const today = bossTodayYmd()
   const [day, setDayState] = useState(today)
 
   useEffect(() => {
     const sync = () => setDayState(readStoredDay())
     listeners.add(sync)
+    // Gün sonu saati sunucudan öğrenilince «bugün» değişebilir.
+    const offBusinessDay = onBossBusinessDayChange(sync)
     sync()
     return () => {
       listeners.delete(sync)
+      offBusinessDay()
     }
   }, [])
 

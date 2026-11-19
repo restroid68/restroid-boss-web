@@ -20,8 +20,9 @@ import {
   todayYmd,
 } from '@/lib/boss-api'
 import { BOSS_TTL, withBossCache } from '@/lib/boss-page-cache'
-import { formatBossDateTime, formatBossDayChip, istanbulYmd, isBossYmd } from '@/lib/boss-wall-clock'
+import { formatBossDateTime, formatBossDayChip, bossTodayYmd, isBossYmd } from '@/lib/boss-wall-clock'
 import { bossBranchDisplayLabel } from '@/lib/boss-branch-display'
+import { buildAnaDayDigest, emptyAnaDayDigest, type AnaDayDigest } from '@/lib/boss-day-digest'
 import { readNativeSession, type BossNativeSession } from '@/lib/boss-bridge'
 import {
   formatBossEventTime,
@@ -125,6 +126,8 @@ export type AnaOwnerBrief = {
 export type AnaDashboardData = {
   restaurantName: string
   branchLabel: string
+  /** Seçili iş gününün özeti (panel «Günün özeti» ile aynı hesap). */
+  dayDigest: AnaDayDigest
   ownerBrief: AnaOwnerBrief
   kpis: KpiMetric[]
   revenueTrend: AnaRevenuePoint[]
@@ -313,6 +316,12 @@ function mapPlatforms(daySummary: Record<string, unknown> | null, onlineAmount: 
   return []
 }
 
+/** Bakiye: eksi işareti ₺'den önce (−₺1.250), kuruş yalnız varsa. */
+function balanceLabel(n: number): string {
+  const abs = Math.abs(n)
+  return `${n < -0.0005 ? '−' : ''}₺${formatMoneyTR(abs, abs % 1 === 0 ? 0 : 2)}`
+}
+
 function mapFinanceRows(
   accountsRaw: unknown[],
   shiftSummary: Record<string, unknown> | null,
@@ -360,7 +369,7 @@ function mapFinanceRows(
     {
       key: 'kasa',
       label: 'Kasa',
-      value: `₺${formatMoneyTR(cash, cash % 1 === 0 ? 0 : 2)}`,
+      value: balanceLabel(cash),
       detail: isToday
         ? cashNameCount > 1
           ? `${cashNameCount} nakit hesap`
@@ -372,7 +381,7 @@ function mapFinanceRows(
     {
       key: 'banka',
       label: 'Banka / POS',
-      value: `₺${formatMoneyTR(bank + pos, (bank + pos) % 1 === 0 ? 0 : 2)}`,
+      value: balanceLabel(bank + pos),
       detail: isToday
         ? bankNameCount + (pos > 0 ? 1 : 0) > 1
           ? 'Kart ve banka'
@@ -452,7 +461,7 @@ function ownerNumbers(data: Record<string, unknown> | null) {
   return { closed, openOrders, collected, guests, expenses, cancel, treat, waste, rate, perGuest }
 }
 
-function emptyOwnerBrief(): AnaOwnerBrief {
+export function emptyOwnerBrief(): AnaOwnerBrief {
   const zero = '₺0'
   return {
     dayLabel: 'Bugün',
@@ -480,6 +489,7 @@ function emptyAna(session: BossNativeSession | null, source: 'api' | 'mock'): An
   return {
     restaurantName: session?.restaurantName || 'Restroid',
     branchLabel: bossBranchDisplayLabel(session?.branchCode),
+    dayDigest: emptyAnaDayDigest(),
     ownerBrief: emptyOwnerBrief(),
     kpis: ANA_KPIS.map((k) => ({ ...k })),
     revenueTrend: [],
@@ -546,7 +556,7 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
   if (!session?.token) return fallback
 
   try {
-    const today = istanbulYmd()
+    const today = bossTodayYmd()
     const selectedDay = isBossYmd(day) ? day : today
     const isToday = selectedDay === today
     const dayChip = formatBossDayChip(selectedDay, today)
@@ -748,7 +758,8 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
     for (const raw of [...waiterRaw, ...cashierRaw]) {
       const row = asMap(raw)
       if (!row) continue
-      const name = String(row.name ?? row.personnelName ?? row.fullName ?? '').trim()
+      // Panel satırları adı `label` alanında gönderir.
+      const name = String(row.label ?? row.name ?? row.personnelName ?? row.fullName ?? '').trim()
       if (!name) continue
       if (!sellerNames.includes(name)) sellerNames.push(name)
       const amt = num(row.amount ?? row.total ?? row.sales)
@@ -792,7 +803,7 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
       periodNet: moneyLabel(periodNums.closed || trend.reduce((sum, point) => sum + point.ciro, 0)),
       periodExpense: moneyLabel(periodNums.expenses),
       periodLoss: moneyLabel(periodNums.cancel + periodNums.treat + periodNums.waste),
-      busyDays: `${busyDays} gün satış`,
+      busyDays: `${busyDays} gün`,
       note:
         dayNums.openOrders > 0.009
           ? `Açık hesapta ${moneyLabel(dayNums.openOrders)} tahsilat bekliyor.`
@@ -889,8 +900,17 @@ export async function loadAnaDashboard(day = todayYmd()): Promise<AnaDashboardDa
       })
     }
 
+    const dayDigest = buildAnaDayDigest(d, {
+      dayLabel: isToday ? 'Bugün' : dayChip,
+      isToday,
+      previousNet: trend.length >= 2 ? yesterdayNet : null,
+      liveOpenTickets: isToday ? openTables : null,
+      liveOrders: isToday ? liveOrders : null,
+    })
+
     return {
       ...base,
+      dayDigest,
       ownerBrief,
       kpis,
       revenueTrend: trend,

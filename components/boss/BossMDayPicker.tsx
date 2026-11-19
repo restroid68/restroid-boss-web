@@ -13,7 +13,7 @@ import {
   clampBossDay,
   daysInMonth,
   formatBossMonthTitle,
-  istanbulYmd,
+  bossTodayYmd,
   parseBossYmd,
   ymdFromParts,
 } from '@/lib/boss-wall-clock'
@@ -155,7 +155,7 @@ export function BossMDayPicker({ className }: { className?: string }) {
             if (d > dim) return <span key={`e-${i}`} className="h-10 !min-h-10 !min-w-0" />
             const disabled = cell > today || cell < minDay
             const selectedDay = cell === day
-            const isTodayCell = cell === istanbulYmd()
+            const isTodayCell = cell === bossTodayYmd()
             return (
               <button
                 key={cell}

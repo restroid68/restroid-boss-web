@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { BossMKpiRow } from '@/components/boss/ana/BossMKpiRow'
+import { BossMDaySummary } from '@/components/boss/ana/BossMDaySummary'
 import { BossMOwnerBrief } from '@/components/boss/ana/BossMOwnerBrief'
 import { BossMRevenueTrend } from '@/components/boss/ana/BossMRevenueTrend'
 import { BossMFinanceSnapshot } from '@/components/boss/ana/BossMFinanceSnapshot'
@@ -14,6 +14,7 @@ import { BossMDayPicker } from '@/components/boss/BossMDayPicker'
 import { BossMSkeletonKpiRow, BossMSkeletonList } from '@/components/boss/BossMSkeleton'
 import { useBossSelectedDay } from '@/hooks/use-boss-selected-day'
 import { ANA_KPIS } from '@/lib/boss-mock'
+import { emptyAnaDayDigest } from '@/lib/boss-day-digest'
 import { loadAnaDashboard, type AnaDashboardData } from '@/lib/boss-p0-data'
 import { postToNative, readNativeSession } from '@/lib/boss-bridge'
 import { useBossLoad } from '@/hooks/use-boss-load'
@@ -22,6 +23,7 @@ import { Store, ChevronDown } from 'lucide-react'
 const ANA_FALLBACK: AnaDashboardData = {
   restaurantName: 'Restroid',
   branchLabel: '',
+  dayDigest: emptyAnaDayDigest(),
   ownerBrief: {
     dayLabel: 'Bugün',
     periodLabel: 'Son 7 gün',
@@ -38,7 +40,7 @@ const ANA_FALLBACK: AnaDashboardData = {
     periodNet: '₺0',
     periodExpense: '₺0',
     periodLoss: '₺0',
-    busyDays: '0 gün satış',
+    busyDays: '0 gün',
     note: null,
   },
   kpis: ANA_KPIS.map((k) => ({ ...k })),
@@ -66,7 +68,7 @@ export default function BossMDashboard() {
   const { day } = useBossSelectedDay()
   const load = useCallback(() => loadAnaDashboard(day), [day])
   const { data, loading } = useBossLoad(load, ANA_FALLBACK, {
-    cacheKey: `page:ana:v5:${day}`,
+    cacheKey: `page:ana:v6:${day}`,
     ttlMs: 45_000,
   })
 
@@ -126,14 +128,14 @@ export default function BossMDashboard() {
         )}
       </header>
 
-      <BossMOwnerBrief brief={data.ownerBrief} />
-      <BossMKpiRow metrics={data.kpis} />
-      <BossMRevenueTrend points={data.revenueTrend} />
+      <BossMDaySummary digest={data.dayDigest} />
       <BossMFinanceSnapshot rows={data.finance} day={day} />
+      <BossMOwnerBrief brief={data.ownerBrief} />
+      <BossMRevenueTrend points={data.revenueTrend} />
       <BossMChannelShares channels={data.channelShares} />
       <BossMPlatforms platforms={data.platforms} />
       <BossMBranchCompare branches={data.branches} />
-      <BossMStaffCard staff={data.staff} />
+      <BossMStaffCard staff={data.staff} sellers={data.dayDigest.sellers} />
       <BossMOpsAlerts alerts={data.opsAlerts} />
     </main>
   )

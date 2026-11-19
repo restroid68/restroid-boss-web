@@ -5,7 +5,7 @@ import {
   CACHE_KEY_SALES_TODAY,
   withBossCache,
 } from '@/lib/boss-page-cache'
-import { addDaysYmd, istanbulYmd, isBossYmd } from '@/lib/boss-wall-clock'
+import { addDaysYmd, bossTodayYmd, isBossYmd, setBossBusinessDayEndHour } from '@/lib/boss-wall-clock'
 
 export type BossApiResult<T = unknown> = {
   ok: boolean
@@ -125,15 +125,16 @@ export async function bossFetch<T = unknown>(
 }
 
 export function todayYmd(): string {
-  return istanbulYmd()
+  return bossTodayYmd()
 }
 
 export async function fetchSalesAnalysisForDay(
   day: string,
 ): Promise<BossApiResult<Record<string, unknown>>> {
   const ymd = isBossYmd(day) ? day : todayYmd()
-  return withBossCache(
-    ymd === todayYmd() ? CACHE_KEY_SALES_TODAY : `api:sales-analysis:full:${ymd}`,
+  const res = await withBossCache(
+    // Anahtar günü içerir: gün sonu saati öğrenilip «bugün» değişirse eski günün verisi dönmesin.
+    ymd === todayYmd() ? `${CACHE_KEY_SALES_TODAY}:${ymd}` : `api:sales-analysis:full:${ymd}`,
     BOSS_TTL.kpi,
     () =>
       bossFetch<Record<string, unknown>>('/api/branches/sales-analysis', {
@@ -141,6 +142,9 @@ export async function fetchSalesAnalysisForDay(
       }),
     { isCacheable: (r) => Boolean(r.ok && r.data) },
   )
+  // Panel ile aynı aktif gün: şubenin gün sonu saatini cevaptan öğren.
+  if (res.ok && res.data) setBossBusinessDayEndHour(res.data.businessDayEndHour)
+  return res
 }
 
 /** Ana / Finans / Z fallback — paylaşılan L1 cache. */

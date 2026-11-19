@@ -13,8 +13,71 @@ export function isBossYmd(value: unknown): boolean {
   return typeof value === 'string' && BOSS_YMD_RE.test(value)
 }
 
+/** Takvim günü (İstanbul). «Bugün» için `bossTodayYmd()` kullanın — iş günü gece yarısında değişmez. */
 export function istanbulYmd(d = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: BOSS_WALL_TZ }).format(d)
+}
+
+/**
+ * İş günü bitiş saati (panel «gün sonu saati», varsayılan 05:00). Satış analizi cevabından öğrenilir
+ * ve cihazda saklanır; panel ile aynı «aktif gün» gösterilsin diye «bugün» buna göre hesaplanır.
+ */
+const BUSINESS_DAY_END_HOUR_KEY = 'boss-business-day-end-hour'
+const DEFAULT_BUSINESS_DAY_END_HOUR = 5
+let businessDayEndHourMem: number | null = null
+const businessDayListeners = new Set<() => void>()
+
+function normalizeEndHour(raw: unknown): number | null {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return null
+  const h = Math.floor(n)
+  return h >= 0 && h <= 23 ? h : null
+}
+
+export function bossBusinessDayEndHour(): number {
+  if (businessDayEndHourMem != null) return businessDayEndHourMem
+  let stored: number | null = null
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(BUSINESS_DAY_END_HOUR_KEY)
+      stored = raw == null ? null : normalizeEndHour(raw)
+    } catch {
+      stored = null
+    }
+  }
+  if (stored != null) businessDayEndHourMem = stored
+  return stored ?? DEFAULT_BUSINESS_DAY_END_HOUR
+}
+
+/** Sunucudan gelen gün sonu saatini kaydeder; değiştiyse dinleyiciler «bugün»ü yeniden hesaplar. */
+export function setBossBusinessDayEndHour(raw: unknown): boolean {
+  const next = normalizeEndHour(raw)
+  if (next == null) return false
+  const prev = bossBusinessDayEndHour()
+  businessDayEndHourMem = next
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(BUSINESS_DAY_END_HOUR_KEY, String(next))
+    } catch {
+      /* özel pencere / dolu depolama: bellekteki değer yeter */
+    }
+  }
+  if (prev === next) return false
+  for (const fn of businessDayListeners) fn()
+  return true
+}
+
+export function onBossBusinessDayChange(fn: () => void): () => void {
+  businessDayListeners.add(fn)
+  return () => {
+    businessDayListeners.delete(fn)
+  }
+}
+
+/** Aktif iş günü (YYYY-MM-DD): gün sonu saatinden önceki gece saatleri bir önceki güne aittir. */
+export function bossTodayYmd(now = new Date()): string {
+  const h = bossBusinessDayEndHour()
+  return istanbulYmd(h > 0 ? new Date(now.getTime() - h * 3600000) : now)
 }
 
 export function parseBossYmd(ymd: string): { year: number; month: number; day: number } | null {
@@ -26,7 +89,7 @@ export function parseBossYmd(ymd: string): { year: number; month: number; day: n
 
 export function addDaysYmd(ymd: string, delta: number): string {
   const p = parseBossYmd(ymd)
-  if (!p) return istanbulYmd()
+  if (!p) return bossTodayYmd()
   const dt = new Date(Date.UTC(p.year, p.month - 1, p.day + delta, 12, 0, 0))
   return `${dt.getUTCFullYear()}-${pad2(dt.getUTCMonth() + 1)}-${pad2(dt.getUTCDate())}`
 }
@@ -47,7 +110,7 @@ export function bossMonthGrid(year: number, month: number): Array<number | null>
   return cells
 }
 
-export function clampBossDay(ymd: string, today = istanbulYmd()): string {
+export function clampBossDay(ymd: string, today = bossTodayYmd()): string {
   if (!isBossYmd(ymd)) return today
   const min = addDaysYmd(today, -BOSS_DAY_LOOKBACK_DAYS)
   if (ymd > today) return today
@@ -55,7 +118,7 @@ export function clampBossDay(ymd: string, today = istanbulYmd()): string {
   return ymd
 }
 
-export function formatBossDayChip(ymd: string, today = istanbulYmd()): string {
+export function formatBossDayChip(ymd: string, today = bossTodayYmd()): string {
   const day = clampBossDay(ymd, today)
   if (day === today) return 'Bugün'
   if (day === addDaysYmd(today, -1)) return 'Dün'

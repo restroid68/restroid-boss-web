@@ -1,9 +1,19 @@
 import Link from 'next/link'
 import { Users } from 'lucide-react'
+import type { AnaSellerRow } from '@/lib/boss-day-digest'
 import type { AnaStaffSummary } from '@/lib/boss-p0-data'
 
-export function BossMStaffCard({ staff }: { staff: AnaStaffSummary }) {
-  if (staff.total <= 0 && !staff.topPerformer) return null
+function initialsOf(name: string): string {
+  return name
+    .split(/s+/)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+export function BossMStaffCard({ staff, sellers = [] }: { staff: AnaStaffSummary; sellers?: AnaSellerRow[] }) {
+  if (staff.total <= 0 && !staff.topPerformer && sellers.length === 0) return null
   const denom = staff.total > 0 ? staff.total : Math.max(staff.onDuty, 1)
   const pct = staff.total > 0 ? Math.round((staff.onDuty / denom) * 100) : 0
 
@@ -29,15 +39,29 @@ export function BossMStaffCard({ staff }: { staff: AnaStaffSummary }) {
           </div>
         </div>
 
-        {staff.topPerformer ? (
+        {sellers.length > 0 ? (
+          <ul className="flex flex-col gap-1.5">
+            {sellers.map((seller, i) => (
+              <li key={seller.key} className="boss-inset-row flex items-center gap-3 rounded-xl border px-3 py-2.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                  {initialsOf(seller.name)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{seller.name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {i === 0 ? 'Günün en yükseği · ' : ''}
+                    {seller.role}
+                    {seller.sub ? ` · ${seller.sub}` : ''}
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm font-semibold tabular-nums">{seller.amountLabel}</span>
+              </li>
+            ))}
+          </ul>
+        ) : staff.topPerformer ? (
           <div className="boss-inset-row flex items-center gap-3 rounded-xl border px-3 py-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-              {staff.topPerformer
-                .split(/\s+/)
-                .map((w) => w[0])
-                .join('')
-                .slice(0, 2)
-                .toUpperCase()}
+              {initialsOf(staff.topPerformer)}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-foreground">{staff.topPerformer}</p>

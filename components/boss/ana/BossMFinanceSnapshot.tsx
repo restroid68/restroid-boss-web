@@ -18,7 +18,7 @@ import {
   type AnaFinanceSheetKind,
   type AnaFinanceSheetLine,
 } from '@/lib/boss-p0-data'
-import { formatBossDayChip, istanbulYmd } from '@/lib/boss-wall-clock'
+import { formatBossDayChip, bossTodayYmd } from '@/lib/boss-wall-clock'
 import { cn } from '@/lib/utils'
 
 const CARD_ICON = {
@@ -62,7 +62,7 @@ export function BossMFinanceSnapshot({
   rows: AnaFinanceRow[]
   day?: string
 }) {
-  const selectedDay = day ?? istanbulYmd()
+  const selectedDay = day ?? bossTodayYmd()
   const chip = formatBossDayChip(selectedDay)
   const [open, setOpen] = useState<AnaFinanceRow | null>(null)
   const [lines, setLines] = useState<AnaFinanceSheetLine[]>([])
