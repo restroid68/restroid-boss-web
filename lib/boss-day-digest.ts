@@ -62,7 +62,8 @@ export type AnaShareRow = {
 export type AnaSellerRow = {
   key: string
   name: string
-  role: 'Garson' | 'Kasiyer'
+  /** Platform: personel açmadığı online sipariş (Getir, Yemeksepeti …) — panel satırı platform adıyla gönderir. */
+  role: 'Garson' | 'Kasiyer' | 'Platform'
   amountLabel: string
   sub: string | null
 }
@@ -337,23 +338,35 @@ export function buildAnaDayDigest(
     5,
   )
 
+  const platformNames = new Set(asList(ds.orderPlatforms).map((r) => text(r.label).toLocaleLowerCase('tr')).filter(Boolean))
+  const isPlatformName = (name: string) => platformNames.has(name.toLocaleLowerCase('tr'))
+  const seenPlatforms = new Set<string>()
   const sellers: AnaSellerRow[] = [
     ...asList(ds.waiterSales).map((r, i) => ({
       key: `w-${i}`,
       name: text(r.label ?? r.name),
-      role: 'Garson' as const,
+      role: 'Garson' as AnaSellerRow['role'],
       amount: num(r.amount),
       sub: num(r.orderCount) > 0 ? `${Math.round(num(r.orderCount))} adisyon` : null,
     })),
     ...asList(ds.cashierSales).map((r, i) => ({
       key: `c-${i}`,
       name: text(r.label ?? r.name),
-      role: 'Kasiyer' as const,
+      role: 'Kasiyer' as AnaSellerRow['role'],
       amount: num(r.amount),
       sub: 'tahsilat',
     })),
   ]
     .filter((r) => r.name && r.amount > 0.0005)
+    .map((r) => (isPlatformName(r.name) ? { ...r, role: 'Platform' as AnaSellerRow['role'], sub: r.role === 'Garson' ? r.sub : null } : r))
+    // Platform satışı hem garson hem kasiyer listesinde aynı adla gelir — bir kez gösterilir.
+    .filter((r) => {
+      if (r.role !== 'Platform') return true
+      const key = r.name.toLocaleLowerCase('tr')
+      if (seenPlatforms.has(key)) return false
+      seenPlatforms.add(key)
+      return true
+    })
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 4)
     .map((r) => ({ key: r.key, name: r.name, role: r.role, amountLabel: bossMoneyLabel(r.amount), sub: r.sub }))
