@@ -6,6 +6,9 @@ import type { LisansStatus, Lisans } from '@/lib/boss-mock'
 import { useBossLoad } from '@/hooks/use-boss-load'
 import { loadLisanslarPage } from '@/lib/boss-page-data'
 import { cn } from '@/lib/utils'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useNativeIos } from '@/hooks/use-native-ios'
 
 const STATUS_CONFIG: Record<LisansStatus, {
   label: string
@@ -110,6 +113,13 @@ export default function BossMListanslarPage() {
     list: [],
     source: 'mock',
   })
+  // App Store (3.1.1 / 3.1.3): iOS uygulamasında lisans durumu / yenileme bilgisi gösterilmez.
+  const ios = useNativeIos()
+  const router = useRouter()
+  useEffect(() => {
+    if (ios) router.replace('/boss-m/ana')
+  }, [ios, router])
+  if (ios) return null
 
   const sorted = [
     ...data.list.filter((l) => l.status === 'yaklasıyor'),

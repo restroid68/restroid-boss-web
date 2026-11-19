@@ -5,6 +5,7 @@ import { Lock, RefreshCw } from 'lucide-react'
 import { bossFetch } from '@/lib/boss-api'
 import { onNativeSession, readNativeSession } from '@/lib/boss-bridge'
 import { peekBossCache, setBossCache, BOSS_TTL } from '@/lib/boss-page-cache'
+import { useNativeIos } from '@/hooks/use-native-ios'
 
 type LicenseStatus = {
   ok: boolean
@@ -26,6 +27,8 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(!cached)
   const [error, setError] = useState<string | null>(null)
   const [hasSession, setHasSession] = useState(() => Boolean(readNativeSession()?.token))
+  // App Store (3.1.1 / 3.1.3): iOS uygulamasında lisans / satın alma çağrışımı yapan metin gösterilmez.
+  const ios = useNativeIos()
 
   const load = useCallback(async () => {
     const session = readNativeSession()
@@ -67,7 +70,7 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
     return (
       <div className="relative z-10 flex min-h-[50vh] flex-col items-center justify-center gap-3 px-6 text-sm text-slate-300">
         <RefreshCw className="h-6 w-6 animate-spin opacity-70" aria-hidden />
-        <p>Lisans kontrol ediliyor…</p>
+        <p>{ios ? 'Hesap doğrulanıyor…' : 'Lisans kontrol ediliyor…'}</p>
       </div>
     )
   }
@@ -76,8 +79,10 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
     return (
       <div className="relative z-10 mx-auto flex max-w-md flex-col items-center gap-4 px-6 py-16 text-center">
         <Lock className="h-10 w-10 text-amber-400" aria-hidden />
-        <h1 className="text-lg font-semibold text-amber-100">Lisans kontrolü başarısız</h1>
-        <p className="text-sm text-slate-400">{error}</p>
+        <h1 className="text-lg font-semibold text-amber-100">
+          {ios ? 'Hesap doğrulanamadı' : 'Lisans kontrolü başarısız'}
+        </h1>
+        <p className="text-sm text-slate-400">{ios ? 'Bağlantınızı kontrol edip tekrar deneyin.' : error}</p>
         <button
           type="button"
           className="rounded-lg border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm text-slate-100"
@@ -95,10 +100,12 @@ export default function BossLicenseGate({ children }: { children: ReactNode }) {
         <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-amber-500/35 bg-amber-500/[0.12] text-amber-200">
           <Lock className="h-7 w-7" strokeWidth={1.75} aria-hidden />
         </span>
-        <h1 className="text-lg font-semibold text-amber-100">Lisans gerekli</h1>
+        <h1 className="text-lg font-semibold text-amber-100">{ios ? 'Hesap etkin değil' : 'Lisans gerekli'}</h1>
         <p className="text-sm text-slate-400">
-          {status.message ||
-            'Bu restoran için geçerli bir satış paneli lisansı bulunamadı. Restroid Boss kullanılamaz.'}
+          {ios
+            ? 'Bu işletme hesabında Restroid Boss kullanıma açık değil. İşletme yöneticinize başvurun.'
+            : status.message ||
+              'Bu restoran için geçerli bir satış paneli lisansı bulunamadı. Restroid Boss kullanılamaz.'}
         </p>
         <button
           type="button"
