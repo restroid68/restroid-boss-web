@@ -1,31 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Coins, RefreshCw, ShoppingCart, Sparkles, Wallet } from 'lucide-react'
+import { RefreshCw, Wallet } from 'lucide-react'
 import { BossMPageHeader } from '@/components/boss/BossMPageHeader'
-import { bossFetch, formatMoneyTR } from '@/lib/boss-api'
-import { isNativeIosBoss, onNativeIap, onNativeSession, postToNative } from '@/lib/boss-bridge'
+import { bossFetch } from '@/lib/boss-api'
+import { useNativeIos } from '@/hooks/use-native-ios'
 import { cn } from '@/lib/utils'
 
-type TokenPackage = {
-  millions: number
-  tokens: number
-  priceTry: number
-  appleProductId?: string
-}
-
+/**
+ * AI token bakiyesi — yalnız görüntüleme.
+ * Boss uygulamasında token SATILMAZ (App Store 3.1.1): paket, fiyat, satın alma düğmesi yok.
+ * Yükleme işletme panelinden (cloud) yapılır; iOS uygulamasında buna yönlendiren metin de gösterilmez
+ * (3.1.3: uygulama dışı satın almaya çağrı yasak).
+ */
 type SummaryData = {
   balanceTokens: number
-  purchaseAvailable: boolean
-  pricePerMillionTokensTry: number
-  packages: TokenPackage[]
-  applePackages?: TokenPackage[]
   recentOrders: Array<{
     id: string
     status: string
     tokenAmount: number | null
-    chargeAmountTry: number
-    source: string | null
     paidAt: string | null
     createdAt: string
   }>
@@ -42,22 +35,12 @@ function formatDate(iso: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  fulfilled: { label: 'Tamamlandı', cls: 'bg-success/10 text-success border-success/20' },
-  paid: { label: 'Ödendi', cls: 'bg-primary/10 text-primary border-primary/20' },
-  failed: { label: 'Başarısız', cls: 'bg-destructive/10 text-destructive border-destructive/20' },
-  pending: { label: 'Bekliyor', cls: 'bg-warning/10 text-warning border-warning/30' },
-}
-
 export default function BossMaiTokenlarPage() {
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [flash, setFlash] = useState<string | null>(null)
-  const [busyPackage, setBusyPackage] = useState<number | null>(null)
-  const [iosNative, setIosNative] = useState(false)
-  const [storePrices, setStorePrices] = useState<Record<string, string>>({})
   const lastFetchAt = useRef(0)
+  const ios = useNativeIos()
 
   const load = useCallback(async (force = false) => {
     const now = Date.now()
@@ -82,84 +65,9 @@ export default function BossMaiTokenlarPage() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [load])
 
-  useEffect(() => {
-    const sync = () => setIosNative(isNativeIosBoss())
-    sync()
-    return onNativeSession(() => sync())
-  }, [])
-
-  useEffect(() => {
-    return onNativeIap((event) => {
-      if (event.type === 'products') {
-        const next: Record<string, string> = {}
-        for (const p of event.products) {
-          if (p.productId && p.price) next[p.productId] = p.price
-        }
-        setStorePrices(next)
-        return
-      }
-      if (event.type === 'pending') {
-        setFlash('App Store ödemesi bekleniyor.')
-        return
-      }
-      if (event.type === 'result') {
-        setBusyPackage(null)
-        if (event.ok) {
-          setError(null)
-          setFlash('Satın alma tamamlandı. Token bakiyesi güncellendi.')
-          void load(true)
-        } else if (!event.cancelled) {
-          setFlash(null)
-          setError(event.error || 'App Store satın alması tamamlanamadı.')
-        } else {
-          setFlash(null)
-        }
-      }
-    })
-  }, [load])
-
-  const storePackages = iosNative ? (data?.applePackages ?? data?.packages ?? []) : (data?.packages ?? [])
-
-  useEffect(() => {
-    if (!iosNative || !data) return
-    const ids = (data.applePackages ?? data.packages)
-      .map((p) => p.appleProductId)
-      .filter((id): id is string => Boolean(id))
-    if (ids.length === 0) return
-    postToNative({ type: 'queryIap', productIds: ids })
-  }, [iosNative, data])
-
-  async function buyPackage(pkg: TokenPackage) {
-    setBusyPackage(pkg.millions)
-    setFlash(null)
-    setError(null)
-    if (iosNative) {
-      if (!pkg.appleProductId) {
-        setBusyPackage(null)
-        setError('App Store ürünü tanımlı değil.')
-        return
-      }
-      postToNative({ type: 'purchaseIap', productId: pkg.appleProductId })
-      return
-    }
-    try {
-      const res = await bossFetch<{ payUrl?: string }>('/api/ai-tokens/purchase', {
-        method: 'POST',
-        body: JSON.stringify({ packageMillions: pkg.millions, source: 'boss_app' }),
-      })
-      const payUrl = res.data?.payUrl
-      if (!res.ok || !payUrl) {
-        setError(res.error || 'Ödeme başlatılamadı.')
-        return
-      }
-      window.open(payUrl, '_blank', 'noopener')
-      setFlash('Ödeme sayfası açıldı. Ödeme sonrası bakiyeniz otomatik güncellenir.')
-    } finally {
-      setBusyPackage(null)
-    }
-  }
-
   const depleted = (data?.balanceTokens ?? 1) <= 0
+  // Yalnız tamamlanan yüklemeler: yarım kalmış ödeme denemeleri ve tutarlar burada gösterilmez.
+  const loads = (data?.recentOrders ?? []).filter((o) => o.status === 'fulfilled' || o.status === 'paid')
 
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
@@ -181,17 +89,12 @@ export default function BossMaiTokenlarPage() {
       <div className="flex-1 overflow-y-auto overscroll-none px-4 boss-nested-scroll">
         {loading ? (
           <div className="flex flex-col gap-3 animate-pulse">
-            {[...Array(3)].map((_, i) => (
+            {[...Array(2)].map((_, i) => (
               <div key={i} className="h-28 bg-surface-2 rounded-2xl" />
             ))}
           </div>
         ) : (
           <>
-            {flash ? (
-              <p className="mb-3 rounded-xl border border-success/20 bg-success/10 px-3 py-2 text-xs text-success" role="status">
-                {flash}
-              </p>
-            ) : null}
             {error ? (
               <p className="mb-3 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
                 {error}
@@ -222,88 +125,30 @@ export default function BossMaiTokenlarPage() {
                   </p>
                 </div>
               </div>
-              {depleted ? (
-                <p className="mt-3 pt-3 border-t border-destructive/20 text-[11px] text-destructive leading-relaxed">
-                  Token bakiyeniz tükendi. AI özelliklerini kullanmaya devam etmek için token yükleyin.
-                </p>
-              ) : null}
+              <p className="mt-3 pt-3 border-t border-border text-[11px] text-muted-foreground leading-relaxed">
+                {depleted ? 'Token bakiyeniz tükendi. ' : ''}
+                Cihaz sesi token harcamaz.
+                {ios ? '' : ' Token yükleme işletme panelinden yapılır.'}
+              </p>
             </div>
-
-            {/* Paketler */}
-            <div className="flex items-center gap-2 mb-2">
-              <Coins size={14} className="text-primary" />
-              <p className="text-sm font-semibold text-foreground">Token paketleri</p>
-            </div>
-            {storePackages.length === 0 ? (
-              <p className="text-xs text-muted-foreground mb-4">Token satın alma şu anda kapalı.</p>
-            ) : (
-              <div className="flex flex-col gap-2 mb-6">
-                {storePackages.map((pkg) => {
-                  const storePrice = pkg.appleProductId ? storePrices[pkg.appleProductId] : undefined
-                  const priceLabel = iosNative
-                    ? (storePrice ?? 'App Store')
-                    : `${formatMoneyTR(pkg.priceTry)} TL`
-                  return (
-                  <div
-                    key={pkg.millions}
-                    className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Sparkles size={14} className="text-primary shrink-0" />
-                      <span className="text-sm font-medium text-foreground tabular-nums truncate">
-                        {formatTokens(pkg.tokens)} token
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-sm font-semibold text-foreground tabular-nums">
-                        {priceLabel}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={busyPackage != null}
-                        onClick={() => void buyPackage(pkg)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 border border-primary/30 text-xs font-semibold text-primary active:bg-primary/20 transition-colors disabled:opacity-50"
-                      >
-                        <ShoppingCart size={13} />
-                        {busyPackage === pkg.millions ? '…' : 'Satın al'}
-                      </button>
-                    </div>
-                  </div>
-                  )
-                })}
-              </div>
-            )}
 
             {/* Geçmiş */}
-            <p className="text-sm font-semibold text-foreground mb-2">Satın alma geçmişi</p>
-            {!data || data.recentOrders.length === 0 ? (
+            <p className="text-sm font-semibold text-foreground mb-2">Yükleme geçmişi</p>
+            {loads.length === 0 ? (
               <p className="text-xs text-muted-foreground">Henüz token yüklemesi yok.</p>
             ) : (
               <div className="flex flex-col gap-2">
-                {data.recentOrders.map((o) => {
-                  const st = STATUS_LABEL[o.status] ?? STATUS_LABEL.pending
-                  return (
-                    <div
-                      key={o.id}
-                      className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground tabular-nums">
-                          {o.tokenAmount != null ? `${formatTokens(o.tokenAmount)} token` : '—'}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground">{formatDate(o.paidAt ?? o.createdAt)}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-sm font-semibold text-foreground tabular-nums">
-                          {o.source === 'apple_iap' ? 'App Store' : `${formatMoneyTR(o.chargeAmountTry)} TL`}
-                        </span>
-                        <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full border', st.cls)}>
-                          {st.label}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
+                {loads.map((o) => (
+                  <div
+                    key={o.id}
+                    className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center justify-between gap-3"
+                  >
+                    <p className="text-sm font-medium text-foreground tabular-nums">
+                      {o.tokenAmount != null ? `${formatTokens(o.tokenAmount)} token` : '—'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground shrink-0">{formatDate(o.paidAt ?? o.createdAt)}</p>
+                  </div>
+                ))}
               </div>
             )}
           </>

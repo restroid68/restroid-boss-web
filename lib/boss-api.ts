@@ -105,10 +105,12 @@ export async function bossFetch<T = unknown>(
       }
     }
     if (!res.ok) {
-      const errMsg =
+      const rawErr =
         typeof data === 'object' && data && 'error' in data
           ? String((data as { error: unknown }).error)
           : `HTTP ${res.status}`
+      // Boss uygulamasında token satılmaz: sunucunun «token yükleyin» çağrısı gösterilmez (App Store 3.1.3).
+      const errMsg = rawErr.replace(/\s*Devam etmek için token yükleyin\.?/i, '').trim() || rawErr
       return { ok: false, status: res.status, data: null, error: errMsg }
     }
     return { ok: true, status: res.status, data: data as T }

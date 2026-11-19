@@ -28,6 +28,7 @@ import type {
   BossAiAskApiProductDraft,
   BossAiAskApiResult,
 } from '@/lib/boss-p0-data'
+import { useNativeIos } from '@/hooks/use-native-ios'
 
 const TTS_PREF_KEY = 'restroid_boss_ai_tts'
 
@@ -276,6 +277,9 @@ export default function BossMaiPage() {
   const ttsModeRef = useRef<BossTtsMode>('off')
   const [voiceSheetOpen, setVoiceSheetOpen] = useState(false)
   const [voiceSheetBusy, setVoiceSheetBusy] = useState(false)
+  /** Doğal ses seçilemediğinde pencere içinde gösterilen kısa not (satın almaya yönlendirme yok). */
+  const [voiceSheetNote, setVoiceSheetNote] = useState<string | null>(null)
+  const iosNative = useNativeIos()
   /** Son seçilen ses türü — sheet'te vurgulanır */
   const [preferredVoice, setPreferredVoice] = useState<'free' | 'premium'>('free')
   const router = useRouter()
@@ -305,6 +309,7 @@ export default function BossMaiPage() {
       stopBossSpeech()
       return
     }
+    setVoiceSheetNote(null)
     setVoiceSheetOpen(true)
   }, [])
 
@@ -319,13 +324,17 @@ export default function BossMaiPage() {
   const chooseVoice = useCallback(
     async (mode: 'free' | 'premium') => {
       if (mode === 'premium') {
-        // Gelişmiş ses token bakiyesinden düşer — bakiye yoksa önce yükleme sayfası.
+        // Doğal ses token bakiyesinden kullanır. Bakiye yoksa pencere içinde not gösterilir;
+        // uygulamada token satılmaz ve satın almaya yönlendirilmez (App Store 3.1.1 / 3.1.3).
         setVoiceSheetBusy(true)
         try {
           const res = await bossFetch<{ balanceTokens?: number }>('/api/ai-tokens/summary')
           if (res.ok && typeof res.data?.balanceTokens === 'number' && res.data.balanceTokens <= 0) {
-            setVoiceSheetOpen(false)
-            router.push('/boss-m/ai/tokenlar')
+            setVoiceSheetNote(
+              iosNative
+                ? 'Doğal ses şu an kullanılamıyor. Cihaz sesini kullanabilirsiniz.'
+                : 'Doğal ses için token bakiyesi yok. Token yükleme işletme panelinden yapılır.',
+            )
             return
           }
         } finally {
@@ -348,7 +357,7 @@ export default function BossMaiPage() {
         speakLastAssistant('cloud')
       }
     },
-    [router, speakLastAssistant],
+    [iosNative, speakLastAssistant],
   )
 
   useEffect(() => {
@@ -704,9 +713,9 @@ export default function BossMaiPage() {
                 <Volume2 size={18} strokeWidth={1.8} />
               </span>
               <span className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground">Ücretsiz ses</span>
+                <span className="text-sm font-semibold text-foreground">Cihaz sesi</span>
                 <span className="text-[12px] text-muted-foreground">
-                  Cihaz sesi, token harcamaz.
+                  Telefonun kendi sesiyle okur.
                 </span>
               </span>
             </button>
@@ -727,12 +736,17 @@ export default function BossMaiPage() {
                 <Sparkles size={18} strokeWidth={1.8} />
               </span>
               <span className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground">Gelişmiş ses</span>
+                <span className="text-sm font-semibold text-foreground">Doğal ses</span>
                 <span className="text-[12px] text-muted-foreground">
-                  Doğal ses, token bakiyenden düşer.
+                  {iosNative ? 'Daha doğal bir sesle okur.' : 'Daha doğal bir sesle okur; AI token bakiyesinden kullanır.'}
                 </span>
               </span>
             </button>
+            {voiceSheetNote ? (
+              <p className="rounded-xl border border-border bg-card/80 px-3 py-2 text-[12px] text-muted-foreground" role="status">
+                {voiceSheetNote}
+              </p>
+            ) : null}
           </div>
         </div>
       )}
